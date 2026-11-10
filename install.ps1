@@ -93,9 +93,9 @@ function Invoke-NativeCommand {
     }
     $ErrorActionPreference = 'Continue'
     $PSNativeCommandUseErrorActionPreference = $false
-    $LASTEXITCODE = $null
+    $global:LASTEXITCODE = $null  # o PowerShell grava o codigo de saida na variavel global
     $output = (& $applicationPath @Arguments 2>&1 | Out-String).Trim()
-    $code = $LASTEXITCODE
+    $code = $global:LASTEXITCODE
     if ($null -eq $code) {
         throw "Nao foi possivel executar '$Command'. $output"
     }
@@ -671,9 +671,13 @@ function Install-Llmwatch {
         Write-Host ""
         Write-Host "  Senha inicial: $($Matches[1])" -ForegroundColor Yellow
         Write-Host "  Troque a senha no primeiro acesso ao painel." -ForegroundColor Yellow
-    } elseif ($initOutput -match 'j[a\u00e1] inicializado') {
+    } elseif ($initOutput -match 'inicializado') {
         Write-Host ""
         Write-Host "  O llmwatch ja estava inicializado (senha existente mantida)." -ForegroundColor Gray
+        $pwFile = Join-Path $env:APPDATA 'llmwatch\initial-password.txt'
+        if (Test-Path -LiteralPath $pwFile) {
+            Write-Host "  Senha inicial (se ainda nao trocou): $pwFile" -ForegroundColor Gray
+        }
     }
 
     Write-Host ""
