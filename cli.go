@@ -51,6 +51,10 @@ Comandos:
   reset-password  Gera uma nova senha e encerra as sessões
   statusline      Escreve o arquivo de status line do Claude Code
   setup-claude    Configura a status line do Claude Code para o llmwatch
+  start           Inicia o serviço do llmwatch
+  stop            Para o serviço do llmwatch
+  restart         Reinicia o serviço do llmwatch
+  status          Mostra o estado do serviço do llmwatch
   version         Mostra a versão do programa
   help            Mostra esta ajuda
 
@@ -80,6 +84,14 @@ func run(ctx context.Context, args []string) int {
 		return cmdStatusline(ctx)
 	case "setup-claude":
 		return cmdSetupClaude(ctx)
+	case "start":
+		return cmdService("start")
+	case "stop":
+		return cmdService("stop")
+	case "restart":
+		return cmdService("restart")
+	case "status":
+		return cmdService("status")
 	case "version":
 		return cmdVersion(ctx)
 	case "help", "-h", "--help":
@@ -433,5 +445,33 @@ func cmdSetupClaude(ctx context.Context) int {
 // cmdVersion prints the version of the program.
 func cmdVersion(ctx context.Context) int {
 	fmt.Printf("llmwatch %s\n", version)
+	return 0
+}
+
+// cmdService runs one of the service subcommands.
+//
+// The state of the service is always printed on the standard output and
+// the errors go to the standard error.
+func cmdService(action string) int {
+	e := defaultServiceEnv()
+
+	var err error
+	switch action {
+	case "start":
+		err = serviceStart(e, os.Stdout)
+	case "stop":
+		err = serviceStop(e, os.Stdout)
+	case "restart":
+		err = serviceRestart(e, os.Stdout)
+	case "status":
+		err = serviceStatus(e, os.Stdout)
+	default:
+		err = fmt.Errorf("comando desconhecido %q", action)
+	}
+
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "llmwatch: %v\n", err)
+		return 1
+	}
 	return 0
 }

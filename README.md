@@ -328,6 +328,11 @@ A *status line* do Claude Code é gravada no **cache** do sistema
 | `llmwatch init` | Prepara o banco, a senha inicial e os providers detectados |
 | `llmwatch reset-password` | Gera uma nova senha e encerra todas as sessões |
 | `llmwatch statusline` | Lê o JSON da status line do Claude Code da entrada padrão, grava no cache e imprime o resumo |
+| `llmwatch setup-claude` | Configura a status line do Claude Code (`--force` substitui outra, `--remove` desfaz) |
+| `llmwatch start` | Inicia o serviço em segundo plano e espera o painel responder |
+| `llmwatch stop` | Para o serviço |
+| `llmwatch restart` | Reinicia o serviço (necessário após mudar variáveis de ambiente) |
+| `llmwatch status` | Mostra se o serviço está instalado/ativo e se o painel responde |
 | `llmwatch version` | Mostra a versão do programa |
 
 Use `llmwatch help` para a ajuda completa.
