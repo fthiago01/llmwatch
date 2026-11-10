@@ -138,6 +138,22 @@ type QuotaStatus struct {
 	Error string `json:"error,omitempty"`
 }
 
+// UpdateInfo describes the update status of the running binary.
+type UpdateInfo struct {
+	// Current is the version in use, e.g. "v0.2.2" or "dev".
+	Current string `json:"current"`
+	// Latest is the tag of the most recent release, e.g. "v0.2.3".
+	Latest string `json:"latest,omitempty"`
+	// Available tells whether Latest is newer than Current.
+	Available bool `json:"available"`
+	// URL is the html_url of the release.
+	URL string `json:"url,omitempty"`
+	// CheckedAt is the moment of the last check.
+	CheckedAt time.Time `json:"checked_at"`
+	// Error describes a failure during the check, when any.
+	Error string `json:"error,omitempty"`
+}
+
 // Snapshot is the aggregated view of a set of usage records.
 type Snapshot struct {
 	GeneratedAt time.Time     `json:"generated_at"`
@@ -146,6 +162,9 @@ type Snapshot struct {
 	Hourly      []Bucket      `json:"hourly"`
 	Quotas      []QuotaStatus `json:"quotas"`
 	Errors      []string      `json:"errors"`
+	// Update holds the update status, filled by the server and not by the
+	// aggregator.
+	Update *UpdateInfo `json:"update,omitempty"`
 }
 
 // windowDef describes a named window and the inclusive/exclusive bounds used

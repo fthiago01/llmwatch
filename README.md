@@ -279,6 +279,7 @@ LLMWATCH_TRUST_PROXY=1
 | `LLMWATCH_TRUST_PROXY` | desligado | `1`, `true` ou `yes`: confia em `X-Forwarded-Host`, `X-Forwarded-Proto`, `X-Forwarded-For` e `X-Real-IP` |
 | `LLMWATCH_DATA_DIR` | `<config dir>/llmwatch` | Diretório do banco e do `initial-password.txt` |
 | `LLMWATCH_PASSWORD` | — | Senha usada na **primeira** inicialização; precisa cumprir a política (mín. 12 caracteres, com letra e número) |
+| `LLMWATCH_UPDATE_CHECK` | ligado | `0` desativa a verificação de novas versões no GitHub |
 | `LLMWATCH_LIMITS` | vazio | JSON com o limite de tokens do bloco de 5h, por provider. Ex.: `{"anthropic":2000000}` |
 
 Sem `LLMWATCH_LIMITS` o bloco de 5h é estimado, mas sem percentual de uso.
@@ -331,8 +332,12 @@ Use `llmwatch help` para a ajuda completa.
 
 ## Atualizar
 
-Rode o instalador de novo: ele baixa a release mais recente, confere o checksum
-e substitui o binário, preservando os dados.
+Quando sai uma versão nova, o painel avisa com um toast no canto da tela, já com
+o comando de atualização do seu sistema. O servidor consulta o último release
+no GitHub ao iniciar e a cada 6 horas (desative com `LLMWATCH_UPDATE_CHECK=0`).
+
+Para atualizar, rode o instalador de novo: ele baixa a release mais recente,
+confere o checksum e substitui o binário, preservando senha, providers e chaves.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/fthiago01/llmwatch/main/install.sh | bash

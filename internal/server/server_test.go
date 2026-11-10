@@ -175,6 +175,7 @@ type snapshotResponse struct {
 	Hourly      []usage.Bucket      `json:"hourly"`
 	Quotas      []usage.QuotaStatus `json:"quotas"`
 	Errors      []string            `json:"errors"`
+	Update      *usage.UpdateInfo   `json:"update,omitempty"`
 }
 
 // wsMessage is the envelope sent over the WebSocket.
@@ -1240,4 +1241,239 @@ func TestSetProvidersStopsOldQuotaGoroutines(t *testing.T) {
 	if got := oldQuota.fetches(); got != fetches {
 		t.Errorf("the old provider was polled %d more times after the replacement", got-fetches)
 	}
+}
+
+// TestSetUpdateBeforeFirstSnapshot checks that an update status received
+// before the first refresh is part of the first published snapshot.
+func TestSetUpdateBeforeFirstSnapshot(t *testing.T) {
+	now := time.Now()
+	src := newFakeSource("claude")
+	src.set("fp-1", []usage.Record{
+		record("claude", "anthropic", "sonnet", now.Add(-time.Hour), 7, 3),
+	})
+
+	s := New([]source.Source{src}, nil, 50*time.Millisecond, nil, testIndex())
+
+	s.SetUpdate(usage.UpdateInfo{
+		Current:   "v1.2.3",
+		Latest:    "v1.3.0",
+		Available: true,
+		URL:       "https://example.com/release",
+		CheckedAt: time.Now(),
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go s.Run(ctx)
+
+	// The first snapshot already carries the update status.
+	waitFor(t, func() bool {
+		return s.testSnapshotUpdate() != nil
+	}, 2*time.Second)
+
+	update := s.testSnapshotUpdate()
+	if update == nil {
+		t.Fatal("no update status in the snapshot")
+	}
+	if got := update.Current; got != "v1.2.3" {
+		t.Errorf("current = %q, want v1.2.3", got)
+	}
+	if got := update.Latest; got != "v1.3.0" {
+		t.Errorf("latest = %q, want v1.3.0", got)
+	}
+	if !update.Available {
+		t.Error("available = false, want true")
+	}
+}
+
+// TestSetUpdateBroadcastsOverWebSocket checks that a client connected to /ws
+// is notified when the update status changes.
+func TestSetUpdateBroadcastsOverWebSocket(t *testing.T) {
+	now := time.Now()
+	src := newFakeSource("claude")
+	src.set("fp-1", []usage.Record{
+		record("claude", "anthropic", "sonnet", now.Add(-time.Hour), 7, 3),
+	})
+
+	s := New([]source.Source{src}, nil, 50*time.Millisecond, nil, testIndex())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go s.Run(ctx)
+
+	waitFor(t, func() bool {
+		return snapshotTotal(t, s) == 10
+	}, 2*time.Second)
+
+	ts := httptest.NewServer(s.Handler())
+	defer ts.Close()
+
+	conn, _, err := websocket.Dial(ctx, wsURL(ts), nil)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer conn.CloseNow()
+
+	readCtx, readCancel := context.WithTimeout(ctx, 3*time.Second)
+	defer readCancel()
+
+	// The client receives the first snapshot.
+	first := readUntil(t, readCtx, conn, func(msg wsMessage) bool {
+		return totalTokens(msg.Data) == 10
+	})
+	if got := totalTokens(first.Data); got != 10 {
+		t.Fatalf("total = %d, want 10", got)
+	}
+
+	// A new version is available: the client must be notified.
+	s.SetUpdate(usage.UpdateInfo{
+		Current:   "v1.2.3",
+		Latest:    "v1.3.0",
+		Available: true,
+		URL:       "https://example.com/release",
+		CheckedAt: time.Now(),
+	})
+
+	second := readUntil(t, readCtx, conn, func(msg wsMessage) bool {
+		return msg.Data.Update != nil && msg.Data.Update.Available
+	})
+	if second.Data.Update == nil {
+		t.Fatal("no update status in the message")
+	}
+	if got := second.Data.Update.Latest; got != "v1.3.0" {
+		t.Errorf("latest = %q, want v1.3.0", got)
+	}
+	// The token data is still there.
+	if got := totalTokens(second.Data); got != 10 {
+		t.Errorf("total = %d, want 10", got)
+	}
+}
+
+// TestSetUpdateSameStatusDoesNotBroadcast checks that an update status equal
+// to the previous one, ignoring the moment of the check, does not produce
+// any new message.
+func TestSetUpdateSameStatusDoesNotBroadcast(t *testing.T) {
+	now := time.Now()
+	src := newFakeSource("claude")
+	src.set("fp-1", []usage.Record{
+		record("claude", "anthropic", "sonnet", now.Add(-time.Hour), 7, 3),
+	})
+
+	s := New([]source.Source{src}, nil, 50*time.Millisecond, nil, testIndex())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go s.Run(ctx)
+
+	waitFor(t, func() bool {
+		return snapshotTotal(t, s) == 10
+	}, 2*time.Second)
+
+	info := usage.UpdateInfo{
+		Current:   "v1.2.3",
+		Latest:    "v1.3.0",
+		Available: true,
+		URL:       "https://example.com/release",
+		CheckedAt: time.Now(),
+	}
+	s.SetUpdate(info)
+
+	ts := httptest.NewServer(s.Handler())
+	defer ts.Close()
+
+	conn, _, err := websocket.Dial(ctx, wsURL(ts), nil)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer conn.CloseNow()
+
+	readCtx, readCancel := context.WithTimeout(ctx, 3*time.Second)
+	defer readCancel()
+
+	// Consume the messages until the update status shows up.
+	readUntil(t, readCtx, conn, func(msg wsMessage) bool {
+		return msg.Data.Update != nil && msg.Data.Update.Available
+	})
+
+	// The same status is reported again, with another check time: no new
+	// message must arrive.
+	info.CheckedAt = time.Now().Add(time.Minute)
+	s.SetUpdate(info)
+
+	quietCtx, quietCancel := context.WithTimeout(ctx, 300*time.Millisecond)
+	defer quietCancel()
+
+	for {
+		_, _, err := conn.Read(quietCtx)
+		if err != nil {
+			break
+		}
+	}
+	if quietCtx.Err() == nil {
+		t.Error("received an unexpected message with an unchanged update status")
+	}
+}
+
+// TestSnapshotIncludesUpdate checks that /api/snapshot exposes the update
+// status.
+func TestSnapshotIncludesUpdate(t *testing.T) {
+	now := time.Now()
+	src := newFakeSource("claude")
+	src.set("fp-1", []usage.Record{
+		record("claude", "anthropic", "sonnet", now.Add(-time.Hour), 7, 3),
+	})
+
+	s := New([]source.Source{src}, nil, 50*time.Millisecond, nil, testIndex())
+
+	s.SetUpdate(usage.UpdateInfo{
+		Current:   "v1.2.3",
+		Latest:    "v1.3.0",
+		Available: true,
+		URL:       "https://example.com/release",
+		CheckedAt: time.Now(),
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go s.Run(ctx)
+
+	waitFor(t, func() bool {
+		return snapshotTotal(t, s) == 10
+	}, 2*time.Second)
+
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/snapshot", nil))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+
+	var body snapshotResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body.Update == nil {
+		t.Fatal("no update status in the snapshot")
+	}
+	if got := body.Update.Current; got != "v1.2.3" {
+		t.Errorf("current = %q, want v1.2.3", got)
+	}
+	if got := body.Update.Latest; got != "v1.3.0" {
+		t.Errorf("latest = %q, want v1.3.0", got)
+	}
+	if !body.Update.Available {
+		t.Error("available = false, want true")
+	}
+}
+
+// testSnapshotUpdate returns the update status of the last snapshot of the
+// server.
+func (s *Server) testSnapshotUpdate() *usage.UpdateInfo {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.snapshot.Update == nil {
+		return nil
+	}
+	copied := *s.snapshot.Update
+	return &copied
 }

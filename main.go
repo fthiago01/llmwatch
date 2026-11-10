@@ -24,6 +24,8 @@ import (
 	"llmwatch/internal/catalog"
 	"llmwatch/internal/server"
 	"llmwatch/internal/store"
+	"llmwatch/internal/update"
+	usageinfo "llmwatch/internal/usage"
 	"llmwatch/web"
 )
 
@@ -32,6 +34,11 @@ const (
 	envAddr       = "LLMWATCH_ADDR"
 	envLimits     = "LLMWATCH_LIMITS"
 	envTrustProxy = "LLMWATCH_TRUST_PROXY"
+	// envUpdateCheck disables the update check when it holds a false
+	// value.
+	envUpdateCheck = "LLMWATCH_UPDATE_CHECK"
+	// envUpdateURL overrides the endpoint of the release API.
+	envUpdateURL = "LLMWATCH_UPDATE_URL"
 )
 
 // defaultAddr is the address the server listens on when nothing is set.
@@ -45,6 +52,12 @@ const shutdownTimeout = 5 * time.Second
 
 // sessionPurgeInterval is how often the expired sessions are removed.
 const sessionPurgeInterval = time.Hour
+
+// updateInterval is how often the release API is queried.
+const updateInterval = 6 * time.Hour
+
+// updateInitialDelay is how long the program waits before the first check.
+const updateInitialDelay = 20 * time.Second
 
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lmsgprefix)
@@ -90,7 +103,7 @@ func cmdServe(ctx context.Context) int {
 	if err != nil {
 		log.Fatalf("inicializar: %v", err)
 	}
-	if created {
+	if created && pw != "" { // senha vinda de LLMWATCH_PASSWORD não gera arquivo
 		file, err := initialPasswordPath()
 		if err != nil {
 			log.Printf("senha inicial: %v", err)
@@ -113,6 +126,22 @@ func cmdServe(ctx context.Context) int {
 
 	srv := server.New(nil, nil, refreshInterval, limits, web.FS)
 	srv.SetOriginCheck(m.OriginAllowed)
+
+	// The footer shows the version in use, even when the update check is
+	// disabled.
+	srv.SetUpdate(usageinfo.UpdateInfo{Current: version})
+
+	// The update check is optional: it can be disabled with
+	// LLMWATCH_UPDATE_CHECK=0.
+	if updateCheckEnabled(os.Getenv(envUpdateCheck)) {
+		checker := update.New(version, os.Getenv(envUpdateURL), nil)
+		go checker.Run(ctx, updateInterval, updateInitialDelay, func(info usageinfo.UpdateInfo) {
+			if info.Available {
+				log.Printf("nova versão %s disponível (atual %s)", info.Latest, info.Current)
+			}
+			srv.SetUpdate(info)
+		})
+	}
 
 	// The providers are read from the database and handed to the server.
 	// The function is called again after every change made in the admin
@@ -298,6 +327,19 @@ func purgeSessions(ctx context.Context, db *store.DB) {
 func truthy(value string) bool {
 	switch strings.ToLower(strings.TrimSpace(value)) {
 	case "1", "true", "yes":
+		return true
+	default:
+		return false
+	}
+}
+
+// updateCheckEnabled reports whether the update check must run.
+//
+// An empty value enables the check. The values "0", "false" and "no"
+// disable it.
+func updateCheckEnabled(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "", "1", "true", "yes":
 		return true
 	default:
 		return false

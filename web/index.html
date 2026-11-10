@@ -181,6 +181,103 @@
     color: var(--text);
     text-decoration: underline;
   }
+  /* The discreet link that reopens the update toast. */
+  .credit .updateLink {
+    color: var(--accent);
+    text-decoration: none;
+  }
+  .credit .updateLink:hover { text-decoration: underline; }
+  .credit .updateLink[hidden] { display: none; }
+
+  /* ------------------------------------------------------- update toast */
+  /* A fixed card in the bottom-right corner announcing a new release. */
+  .updateToast {
+    position: fixed;
+    right: 18px;
+    bottom: 18px;
+    z-index: 9999;
+    width: calc(100vw - 36px);
+    max-width: 380px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 10px;
+    box-shadow: 0 8px 28px rgba(16, 22, 26, 0.22);
+    padding: 14px 16px;
+    animation: updateToastIn 260ms ease-out;
+  }
+  .updateToast[hidden] { display: none; }
+
+  @keyframes updateToastIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .updateToast h3 {
+    margin: 0 0 2px;
+    font-size: 14px;
+    font-weight: 650;
+    color: var(--text);
+  }
+  .updateToast .updateSub {
+    margin: 0 0 10px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .updateToast .updateHint {
+    margin: 0 0 6px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .updateToast code {
+    display: block;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 11.5px;
+    line-height: 1.45;
+    color: var(--text);
+    background: var(--panel-alt);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 8px 9px;
+    margin: 0 0 8px;
+    word-break: break-all;
+    user-select: all;
+  }
+  .updateToast .updateNote {
+    margin: 0 0 10px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .updateToast .updateActions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+  .updateToast button,
+  .updateToast .updateLink {
+    font: inherit;
+    font-size: 12px;
+    color: var(--accent);
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 5px 10px;
+    cursor: pointer;
+    text-decoration: none;
+  }
+  .updateToast button:hover,
+  .updateToast .updateLink:hover { background: var(--accent-soft); }
+  .updateToast button:focus-visible,
+  .updateToast .updateLink:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .updateToast .updateActions .dismiss {
+    margin-left: auto;
+    color: var(--muted);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .updateToast { animation: none; }
+  }
 
   section {
     margin-bottom: 22px;
@@ -1074,7 +1171,14 @@
     <p class="empty" id="rowsEmpty" hidden>nenhum uso registrado nesta janela</p>
   </section>
 
-  <footer class="credit">desenvolvido por <a href="https://github.com/fthiago01" target="_blank" rel="noopener noreferrer">fthiago01</a></footer>
+  <footer class="credit">
+    <span id="appVersion">llmwatch</span>
+    <span aria-hidden="true"> · </span>
+    desenvolvido por <a href="https://github.com/fthiago01" target="_blank" rel="noopener noreferrer">fthiago01</a>
+    <span id="updateLinkWrap" hidden>
+      · <a href="#" id="updateLink">atualização disponível</a>
+    </span>
+  </footer>
 
 </div>
 
@@ -1262,7 +1366,10 @@
     errors: document.getElementById("errors"),
     logoutButton: document.getElementById("logoutButton"),
     installButton: document.getElementById("installButton"),
-    widgetButton: document.getElementById("widgetButton")
+    widgetButton: document.getElementById("widgetButton"),
+    appVersion: document.getElementById("appVersion"),
+    updateLink: document.getElementById("updateLink"),
+    updateLinkWrap: document.getElementById("updateLinkWrap")
   };
 
   // -------------------------------------------------------------- logout
@@ -2275,6 +2382,235 @@
     });
   }
 
+  // ---------------------------------------------------------------- update
+
+  // DISMISSED_VERSION_KEY stores the version the user chose to ignore.
+  var DISMISSED_VERSION_KEY = "llmwatch.dismissedVersion";
+
+  // INSTALL_POWERSHELL and INSTALL_SHELL are the one-liners that update the
+  // installation, one per operating system.
+  var INSTALL_POWERSHELL = "irm https://raw.githubusercontent.com/fthiago01/llmwatch/main/install.ps1 | iex";
+  var INSTALL_SHELL = "curl -fsSL https://raw.githubusercontent.com/fthiago01/llmwatch/main/install.sh | bash";
+
+  // updateToast holds the toast element and the version it currently shows.
+  //
+  // The version is remembered so the toast is not rebuilt on every snapshot:
+  // rebuilding it would restart the entry animation and make it flicker.
+  var updateToast = {
+    node: null,
+    version: null,
+    info: null,
+    copyTimer: null,
+    pinned: false
+  };
+
+  // dismissedVersion returns the version dismissed by the user, if any.
+  function dismissedVersion() {
+    try {
+      return window.localStorage.getItem(DISMISSED_VERSION_KEY) || "";
+    } catch (e) {
+      return "";
+    }
+  }
+
+  // saveDismissedVersion remembers that the user does not want to see the
+  // toast for the given version anymore.
+  function saveDismissedVersion(version) {
+    try {
+      window.localStorage.setItem(DISMISSED_VERSION_KEY, version);
+    } catch (e) {
+      // Storage may be unavailable (private mode, blocked cookies).
+    }
+  }
+
+  // isWindows reports whether the browser runs on Windows.
+  function isWindows() {
+    var platform = "";
+    var agent = "";
+    try {
+      platform = navigator.platform || "";
+      agent = navigator.userAgent || "";
+    } catch (e) {
+      return false;
+    }
+    return /win/i.test(platform) || /Windows/i.test(agent);
+  }
+
+  // installCommand returns the update command for the current operating
+  // system.
+  function installCommand() {
+    return isWindows() ? INSTALL_POWERSHELL : INSTALL_SHELL;
+  }
+
+  // renderUpdateFooter updates the version shown in the footer and the link
+  // that reopens the toast.
+  function renderUpdateFooter(info) {
+    if (refs.appVersion) {
+      refs.appVersion.textContent = info && info.current ? "llmwatch " + info.current : "llmwatch";
+    }
+    var available = !!(info && info.available && info.latest);
+    if (refs.updateLinkWrap) refs.updateLinkWrap.hidden = !available;
+    if (refs.updateLink) {
+      refs.updateLink.title = available ? "Ver as novidades da versão " + info.latest : "";
+    }
+  }
+
+  // hideUpdateToast removes the toast from the screen.
+  function hideUpdateToast() {
+    if (updateToast.node && updateToast.node.parentNode) {
+      updateToast.node.parentNode.removeChild(updateToast.node);
+    }
+    updateToast.node = null;
+    updateToast.version = null;
+    updateToast.info = null;
+    updateToast.pinned = false;
+  }
+
+  // copyText copies the given text to the clipboard.
+  //
+  // The async clipboard API is used when available; otherwise the text is
+  // selected in a temporary field so the user can copy it manually.
+  function copyText(text) {
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+      return navigator.clipboard.writeText(text);
+    }
+    return new Promise(function (resolve, reject) {
+      try {
+        var field = document.createElement("textarea");
+        field.value = text;
+        field.setAttribute("readonly", "readonly");
+        field.style.position = "fixed";
+        field.style.top = "-1000px";
+        field.style.opacity = "0";
+        document.body.appendChild(field);
+        field.select();
+        field.setSelectionRange(0, field.value.length);
+        var ok = false;
+        try {
+          ok = document.execCommand("copy");
+        } catch (e) {
+          ok = false;
+        }
+        document.body.removeChild(field);
+        if (ok) resolve();
+        else reject(new Error("copy failed"));
+      } catch (e) {
+        reject(e);
+      }
+    });
+  }
+
+  // buildUpdateToast creates the toast card announcing a new version.
+  function buildUpdateToast(info) {
+    var node = el("div", "updateToast");
+    node.setAttribute("role", "status");
+    node.setAttribute("aria-live", "polite");
+
+    node.appendChild(el("h3", null, "Nova versão disponível: " + info.latest));
+    node.appendChild(el("p", "updateSub", "Você está na " + (info.current || "—") + "."));
+    node.appendChild(el("p", "updateHint", "Para atualizar, rode no terminal:"));
+
+    var command = installCommand();
+    var code = el("code", null, command);
+    node.appendChild(code);
+
+    node.appendChild(el("p", "updateNote", "Seus dados e configurações são mantidos."));
+
+    var actions = el("div", "updateActions");
+
+    var copyButton = el("button", null, "Copiar comando");
+    copyButton.type = "button";
+    copyButton.addEventListener("click", function () {
+      copyText(command).then(function () {
+        copyButton.textContent = "Copiado!";
+        if (updateToast.copyTimer) window.clearTimeout(updateToast.copyTimer);
+        updateToast.copyTimer = window.setTimeout(function () {
+          updateToast.copyTimer = null;
+          copyButton.textContent = "Copiar comando";
+        }, 2000);
+      }).catch(function () {
+        copyButton.textContent = "Falhou";
+        if (updateToast.copyTimer) window.clearTimeout(updateToast.copyTimer);
+        updateToast.copyTimer = window.setTimeout(function () {
+          updateToast.copyTimer = null;
+          copyButton.textContent = "Copiar comando";
+        }, 2000);
+      });
+    });
+    actions.appendChild(copyButton);
+
+    if (info.url) {
+      var newsLink = el("a", "updateLink", "Ver novidades");
+      newsLink.href = info.url;
+      newsLink.target = "_blank";
+      newsLink.rel = "noopener noreferrer";
+      actions.appendChild(newsLink);
+    }
+
+    var dismissButton = el("button", "dismiss", "Dispensar");
+    dismissButton.type = "button";
+    dismissButton.addEventListener("click", function () {
+      saveDismissedVersion(info.latest);
+      hideUpdateToast();
+    });
+    actions.appendChild(dismissButton);
+
+    node.appendChild(actions);
+    return node;
+  }
+
+  // showUpdateToast displays the toast for the given update info.
+  //
+  // The pinned flag keeps the toast on screen even when the version was
+  // dismissed before: it is used when the user reopens it from the footer.
+  function showUpdateToast(info, pinned) {
+    // The toast is not rebuilt when it already shows the same version.
+    if (updateToast.node && updateToast.version === info.latest) {
+      if (pinned) updateToast.pinned = true;
+      return;
+    }
+    hideUpdateToast();
+    var node = buildUpdateToast(info);
+    document.body.appendChild(node);
+    updateToast.node = node;
+    updateToast.version = info.latest;
+    updateToast.info = info;
+    updateToast.pinned = !!pinned;
+  }
+
+  // renderUpdate reacts to the update information of the snapshot.
+  //
+  // The toast appears when a new version is available and was not dismissed.
+  // A version newer than the current one replaces the toast content.
+  function renderUpdate(info) {
+    renderUpdateFooter(info);
+    if (!info || !info.available || !info.latest) {
+      hideUpdateToast();
+      return;
+    }
+    if (dismissedVersion() === info.latest) {
+      // The user dismissed this version: the toast stays hidden, but the
+      // footer link still opens it.
+      if (updateToast.node && updateToast.version === info.latest && !updateToast.pinned) {
+        hideUpdateToast();
+      }
+      return;
+    }
+    showUpdateToast(info, false);
+  }
+
+  // bindUpdateLink makes the footer link reopen the toast, even when the
+  // version was dismissed before.
+  function bindUpdateLink() {
+    if (!refs.updateLink) return;
+    refs.updateLink.addEventListener("click", function (ev) {
+      ev.preventDefault();
+      var info = updateToast.info || (state.snapshot && state.snapshot.update);
+      if (!info || !info.latest) return;
+      showUpdateToast(info, true);
+    });
+  }
+
   function renderAll() {
     rebuildProviderColors(state.snapshot);
     renderWindow();
@@ -2282,6 +2618,7 @@
     renderBlocks();
     renderChart();
     renderErrors();
+    renderUpdate(state.snapshot && state.snapshot.update);
     updateStatus();
     // The floating window mirrors the same snapshot.
     renderWidget();
@@ -2408,6 +2745,7 @@
   bindLogout();
   bindInstall();
   bindWidget();
+  bindUpdateLink();
   registerServiceWorker();
   renderWindow();
   setStatus("wait", "conectando");

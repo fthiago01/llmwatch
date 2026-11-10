@@ -113,6 +113,10 @@ type Server struct {
 	// quotaNames holds the names of the registered quota providers.
 	quotaNames map[string]struct{}
 
+	// update holds the last update status reported by the update checker.
+	// It is nil when no status was received yet.
+	update *usage.UpdateInfo
+
 	// genCounter numbers the generations of quota goroutines.
 	genCounter uint64
 	// genID is the identifier of the current generation of quota
@@ -211,6 +215,74 @@ func (s *Server) SetProviders(sources []source.Source, quotas []quota.Provider, 
 
 	// Ask the Run loop to refresh the data right away.
 	s.requestRefresh()
+}
+
+// SetUpdate stores the update status of the program.
+//
+// It may be called before or after Run, from any goroutine, as many times
+// as needed. The status is part of the snapshot published to the clients:
+// when it changes and a snapshot was already published, the new snapshot is
+// broadcast right away.
+//
+// A status equal to the previous one, ignoring the moment of the check, is
+// not published again: only the stored copy is refreshed.
+func (s *Server) SetUpdate(info usage.UpdateInfo) {
+	s.mu.Lock()
+	unchanged := s.update != nil && sameUpdate(*s.update, info)
+	s.update = &info
+	snapshot := s.snapshot
+	ready := s.hasSnapshot
+	if ready {
+		snapshot.Quotas = s.quotaStatuses()
+		snapshot.Errors = s.snapshotErrors(s.loadErrors...)
+		snapshot.Update = s.updateCopy()
+	}
+	s.mu.Unlock()
+
+	if unchanged {
+		// Nothing changed: the clients are not bothered.
+		return
+	}
+
+	if !ready {
+		// There is no token snapshot yet: the status is only kept and
+		// published by the first refresh.
+		return
+	}
+
+	payload, err := json.Marshal(message{Type: "snapshot", Data: snapshot})
+	if err != nil {
+		log.Printf("server: marshal snapshot: %v", err)
+		return
+	}
+
+	s.mu.Lock()
+	s.snapshot = snapshot
+	s.payload = payload
+	s.mu.Unlock()
+
+	s.broadcast(payload)
+}
+
+// sameUpdate reports whether two update statuses are equal, ignoring the
+// moment of the check.
+func sameUpdate(a, b usage.UpdateInfo) bool {
+	a.CheckedAt = time.Time{}
+	b.CheckedAt = time.Time{}
+	return reflect.DeepEqual(a, b)
+}
+
+// updateCopy returns a copy of the stored update status.
+//
+// It returns nil when no status was received yet.
+//
+// The caller must hold the mutex.
+func (s *Server) updateCopy() *usage.UpdateInfo {
+	if s.update == nil {
+		return nil
+	}
+	copied := *s.update
+	return &copied
 }
 
 // restartQuotas stops the quota goroutines of the previous generation and
@@ -458,6 +530,7 @@ func (s *Server) setQuotaStatus(name string, status usage.QuotaStatus, genID uin
 	if ready {
 		snapshot.Quotas = s.quotaStatuses()
 		snapshot.Errors = s.snapshotErrors(s.loadErrors...)
+		snapshot.Update = s.updateCopy()
 	}
 	s.mu.Unlock()
 
@@ -573,6 +646,8 @@ func (s *Server) refresh(ctx context.Context) {
 	// errors.
 	s.loadErrors = errs
 	snapshot.Errors = s.snapshotErrors(errs...)
+	// The update status of the program is part of the snapshot.
+	snapshot.Update = s.updateCopy()
 	s.mu.Unlock()
 
 	payload, err := json.Marshal(message{Type: "snapshot", Data: snapshot})
