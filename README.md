@@ -30,23 +30,16 @@ curl -fsSL https://raw.githubusercontent.com/fthiago01/llmwatch/main/install.sh 
 irm https://raw.githubusercontent.com/fthiago01/llmwatch/main/install.ps1 | iex
 ```
 
-### Enquanto o repositório for privado
+### Forks privados
 
-O download direto do release não funciona em repositórios privados. Com o
-[GitHub CLI](https://cli.github.com) instalado e autenticado (`gh auth login`)
-com acesso ao repositório, baixe o instalador pela API:
+Se você mantiver um fork privado, o download direto do release não funciona.
+Com o [GitHub CLI](https://cli.github.com) autenticado (`gh auth login`), aponte
+o instalador para o seu repositório com `LLMWATCH_REPO` — ele usa
+`gh release download` automaticamente quando o download direto falha:
 
 ```bash
-gh api repos/fthiago01/llmwatch/contents/install.sh -H 'Accept: application/vnd.github.raw' | bash
+gh api repos/<usuario>/llmwatch/contents/install.sh -H 'Accept: application/vnd.github.raw' | LLMWATCH_REPO=<usuario>/llmwatch bash
 ```
-
-```powershell
-gh api repos/fthiago01/llmwatch/contents/install.ps1 -H 'Accept: application/vnd.github.raw' | iex
-```
-
-O instalador tenta o download direto do release primeiro; quando ele falha, usa
-`gh release download` automaticamente (é o mesmo fallback do script e do
-`install.ps1`).
 
 ### O que o instalador faz
 
