@@ -1,0 +1,2431 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#1e3a8a">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icons/icon-192.png">
+<title>llmwatch</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --panel: #ffffff;
+    --panel-alt: #f0f2f5;
+    --border: #dfe3e8;
+    --text: #1c2128;
+    --muted: #636c76;
+    --accent: #2f6feb;
+    --accent-soft: #dbe7ff;
+    --ok: #1a7f4b;
+    --warn: #b26a00;
+    --bad: #c0392b;
+    --grid: #eceff3;
+    --shadow: 0 1px 2px rgba(16, 22, 26, 0.06), 0 4px 12px rgba(16, 22, 26, 0.05);
+    --scroll: #dfe3e8;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e1116;
+      --panel: #161b22;
+      --panel-alt: #1c232c;
+      --border: #2b333d;
+      --text: #e6edf3;
+      --muted: #9198a1;
+      --accent: #58a6ff;
+      --accent-soft: #1d2b45;
+      --ok: #3fb950;
+      --warn: #d29922;
+      --bad: #f85149;
+      --grid: #262d36;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.3);
+      --scroll: #303944;
+    }
+  }
+
+  * {
+    box-sizing: border-box;
+    scrollbar-width: thin;
+    scrollbar-color: var(--scroll, var(--border)) transparent;
+  }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: var(--scroll, var(--border));
+    border-radius: 8px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover { background-color: var(--muted); }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, Cantarell, sans-serif;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  .wrap {
+    max-width: none;
+    margin: 0;
+    padding: 12px;
+  }
+
+  .leftcol {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-height: 0;
+  }
+
+  header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 14px;
+    margin-bottom: 18px;
+  }
+
+  h1 {
+    font-size: 20px;
+    font-weight: 650;
+    margin: 0;
+    letter-spacing: -0.01em;
+  }
+
+  .status {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+
+  .dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--muted);
+    flex: none;
+  }
+  .dot.on { background: var(--ok); }
+  .dot.off { background: var(--bad); }
+  .dot.wait { background: var(--warn); }
+
+  .spacer { flex: 1 1 auto; }
+
+  .header-nav {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 12px;
+  }
+  .header-nav a,
+  .header-nav button {
+    color: var(--muted);
+    text-decoration: none;
+    font: inherit;
+    background: transparent;
+    border: 0;
+    padding: 3px 2px;
+    cursor: pointer;
+  }
+  .header-nav a:hover,
+  .header-nav button:hover { color: var(--text); }
+  .header-nav a:focus-visible,
+  .header-nav button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .header-nav button[hidden] { display: none; }
+
+  /* The widget button shows a small square that mimics the floating window. */
+  .widgetIcon {
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    margin-right: 5px;
+    border: 1px solid currentColor;
+    border-radius: 2px;
+    vertical-align: baseline;
+    position: relative;
+    top: 0;
+  }
+  .widgetIcon::after {
+    content: "";
+    position: absolute;
+    left: 1px;
+    right: 1px;
+    top: 1px;
+    height: 2px;
+    background: currentColor;
+    opacity: 0.75;
+  }
+
+  /* ------------------------------------------------------------- credit */
+  .credit {
+    font-size: 12px;
+    color: var(--muted);
+    text-align: center;
+    margin: 0;
+    padding: 2px 0;
+  }
+  .credit a {
+    color: var(--muted);
+    text-decoration: none;
+  }
+  .credit a:hover {
+    color: var(--text);
+    text-decoration: underline;
+  }
+
+  section {
+    margin-bottom: 22px;
+  }
+
+  h2 {
+    font-size: 13px;
+    font-weight: 650;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--muted);
+    margin: 0 0 10px;
+  }
+
+  .cards {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  @media (min-width: 701px) and (max-width: 1099px) {
+    .cards { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+  }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 13px 14px;
+    box-shadow: var(--shadow);
+  }
+
+  .card h3 {
+    margin: 0 0 10px;
+    font-size: 14px;
+    font-weight: 650;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .chip {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 999px;
+    padding: 2px 8px;
+  }
+
+  .kv {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 3px 12px;
+    font-size: 13px;
+  }
+  .kv dt { color: var(--muted); }
+  .kv dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+
+  .big {
+    font-size: 25px;
+    font-weight: 650;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+    margin: 2px 0 8px;
+  }
+
+  .bar {
+    position: relative;
+    height: 7px;
+    border-radius: 999px;
+    background: var(--grid);
+    overflow: hidden;
+    margin-top: 5px;
+  }
+  .bar > i {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    background: var(--accent);
+    transition: width 0.4s ease;
+  }
+  .bar.ok > i { background: var(--ok); }
+  .bar.warn > i { background: var(--warn); }
+  .bar.bad > i { background: var(--bad); }
+
+  .barlabel {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11.5px;
+    color: var(--muted);
+    margin-top: 8px;
+  }
+  .barlabel + .bar { margin-top: 3px; }
+
+  .countdown {
+    font-variant-numeric: tabular-nums;
+    font-weight: 650;
+  }
+
+  .muted { color: var(--muted); }
+  .empty { color: var(--muted); font-size: 13px; }
+
+  .tabs {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    background: var(--panel-alt);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    padding: 3px;
+  }
+  .tabs button {
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--muted);
+    background: transparent;
+    border: 0;
+    border-radius: 7px;
+    padding: 5px 12px;
+    cursor: pointer;
+  }
+  .tabs button:hover { color: var(--text); }
+  .tabs button[aria-pressed="true"] {
+    background: var(--panel);
+    color: var(--accent);
+    box-shadow: var(--shadow);
+  }
+  .tabs button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  .totals {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 12px;
+  }
+  .totals > div {
+    background: var(--panel);
+    padding: 10px 12px;
+  }
+  .totals .lbl {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+  }
+  .totals .val {
+    font-size: 18px;
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+  }
+
+  .tablewrap {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow-x: auto;
+    box-shadow: var(--shadow);
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    min-width: 620px;
+  }
+  th, td {
+    padding: 8px 11px;
+    text-align: right;
+    white-space: nowrap;
+    border-bottom: 1px solid var(--border);
+  }
+  th {
+    font-size: 11px;
+    font-weight: 650;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+    background: var(--panel-alt);
+    position: sticky;
+    top: 0;
+  }
+  th:first-child, td:first-child,
+  th:nth-child(2), td:nth-child(2) { text-align: left; }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr:hover td { background: var(--panel-alt); }
+  td { font-variant-numeric: tabular-nums; }
+  .prov {
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    border-radius: 2px;
+    margin-right: 6px;
+    vertical-align: baseline;
+  }
+
+  .chart {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 12px 10px;
+    box-shadow: var(--shadow);
+    overflow-x: auto;
+  }
+  #chart { height: 220px; }
+  .chart svg { display: block; width: 100%; height: 100%; min-width: 0; }
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+    margin-top: 10px;
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+  .legend span.item { display: inline-flex; align-items: center; gap: 6px; }
+
+  .errors {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--bad);
+    border-radius: 10px;
+    padding: 11px 14px;
+  }
+  .errors ul { margin: 0; padding-left: 18px; }
+  .errors li { font-size: 13px; color: var(--text); }
+
+  /* ------------------------------------------------------- quota limits */
+
+  .quota {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 13px 14px;
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .quota > h3 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 650;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .badge {
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    background: var(--panel-alt);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 2px 8px;
+  }
+
+  .plan {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 999px;
+    padding: 2px 8px;
+  }
+
+  .qwin {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+  }
+  .qwin + .qwin {
+    border-top: 0;
+    padding-top: 0;
+  }
+
+  /* The quota windows are laid out side by side in two columns. */
+  .qwindows {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .qwinhead {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 12.5px;
+  }
+  .qwinhead .wname {
+    color: var(--text);
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+
+  .qleft {
+    font-size: 21px;
+    font-weight: 650;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    color: var(--text);
+  }
+
+  .qmeta {
+    font-size: 11.5px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+  }
+
+  .qwarn {
+    font-size: 12.5px;
+    color: var(--warn);
+    background: var(--panel-alt);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--warn);
+    border-radius: 8px;
+    padding: 8px 10px;
+    overflow-wrap: anywhere;
+  }
+
+  .qstale {
+    font-size: 11.5px;
+    color: var(--warn);
+    overflow-wrap: anywhere;
+  }
+
+  .qempty {
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  @media (max-width: 480px) {
+    .wrap { padding: 12px; }
+    h1 { font-size: 18px; }
+    .big { font-size: 22px; }
+    .cards { grid-template-columns: 1fr; }
+    .totals { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  /* ------------------------------------------------- fullscreen dashboard */
+
+  /* Desktop: the dashboard fills the viewport, no page scroll. */
+  @media (min-width: 1100px) and (min-height: 680px) {
+    html, body {
+      height: 100%;
+      overflow: hidden;
+    }
+
+    .wrap {
+      width: 100vw;
+      height: 100vh;
+      max-width: none;
+      margin: 0;
+      padding: 14px 18px;
+      box-sizing: border-box;
+      overflow: hidden;
+      display: grid;
+      grid-template-columns: minmax(380px, 1fr) 2fr;
+      grid-template-rows: auto auto minmax(0, 1fr) auto;
+      grid-template-areas:
+        "header header"
+        "quotas quotas"
+        "left window"
+        "footer footer";
+      gap: 10px;
+    }
+
+    header {
+      grid-area: header;
+      margin: 0;
+      flex-wrap: nowrap;
+      gap: 10px 16px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      box-shadow: var(--shadow);
+      padding: 8px 14px;
+      min-height: 0;
+    }
+
+    h1 {
+      font-size: 17px;
+      white-space: nowrap;
+    }
+
+    .status {
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    /* Errors live in the header row, right-aligned as a compact warning. */
+    header #errorsSection {
+      order: 3;
+      margin: 0;
+      flex: 1 1 auto;
+      min-width: 0;
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+    }
+    header #errorsSection[hidden] { display: none; }
+
+    .errors {
+      max-width: 100%;
+      max-height: 42px;
+      overflow: auto;
+      padding: 4px 10px;
+      border-left-width: 3px;
+      font-size: 12px;
+    }
+    .errors ul {
+      padding-left: 16px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 2px 18px;
+    }
+    .errors li {
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    /* Each section becomes a panel. */
+    #quotaSection,
+    #blocksSection,
+    #chartSection,
+    #windowSection {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      box-shadow: var(--shadow);
+      padding: 12px;
+      margin: 0;
+      min-height: 0;
+    }
+
+    #quotaSection {
+      grid-area: quotas;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    h2 {
+      font-size: 11.5px;
+      margin: 0 0 8px;
+      letter-spacing: 0.06em;
+    }
+
+    /* Quotas span the full width; each card shows its windows side by side. */
+    #quotas {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 10px;
+      max-height: 36vh;
+      overflow-y: auto;
+      min-height: 0;
+      padding-right: 3px;
+    }
+
+    .quota {
+      padding: 8px 11px;
+      gap: 5px;
+      background: var(--panel-alt);
+      border-color: var(--border);
+      box-shadow: none;
+      container-type: inline-size;
+    }
+
+    /* The provider name, the badges and the age share the first row. */
+    .quota .qhead {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .quota > .qhead > h3,
+    .quota .qhead > h3 {
+      font-size: 13px;
+      margin: 0;
+      flex-wrap: nowrap;
+      min-width: 0;
+    }
+
+    .quota .qhead > .qmeta {
+      font-size: 10.5px;
+      white-space: nowrap;
+      flex: none;
+    }
+
+    /* The quota windows live in a two column grid inside each card. */
+    .quota .qwindows {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .qwin {
+      gap: 1px;
+      min-width: 0;
+      display: grid;
+      grid-template-columns: minmax(0, auto) minmax(0, 1fr);
+      align-items: baseline;
+      column-gap: 8px;
+    }
+
+    .qwin + .qwin {
+      border-top: 0;
+      padding-top: 0;
+    }
+
+    /* Window name on the left, remaining percentage right after it.
+       The name gives way first when the column is narrow. */
+    .qwinhead {
+      grid-column: 1;
+      grid-row: 1;
+      font-size: 11px;
+      align-items: baseline;
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    .qwinhead .wname {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .qleft {
+      grid-column: 2;
+      grid-row: 1;
+      font-size: 20px;
+      line-height: 1.1;
+      white-space: nowrap;
+      min-width: 0;
+    }
+
+    /* Narrow quota cards shrink the percentage so it never overflows. */
+    @container (max-width: 430px) {
+      .qleft { font-size: 17px; }
+    }
+
+    @container (max-width: 350px) {
+      .qleft { font-size: 15px; }
+    }
+
+    .qwin > .bar {
+      grid-column: 1 / -1;
+      grid-row: 2;
+    }
+
+    /* The used/limit and the reset countdown share the last row. */
+    .qwin > .qmeta {
+      font-size: 10.5px;
+      line-height: 1.35;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
+    }
+
+    .qwin > .qfoot {
+      grid-column: 1 / -1;
+      grid-row: 3;
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 10.5px;
+      line-height: 1.35;
+      min-width: 0;
+    }
+
+    .qwin > .qfoot > .qmeta {
+      min-width: 0;
+    }
+
+    .qmeta {
+      font-size: 10.5px;
+      line-height: 1.35;
+    }
+
+    .quota .qempty,
+    .quota .qwarn,
+    .quota .qstale,
+    .quota > .qmeta {
+      font-size: 11px;
+    }
+
+    /* Left column: blocks on top, chart below. */
+    .leftcol {
+      grid-area: left;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-height: 0;
+    }
+
+    #blocksSection {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      overflow: hidden;
+      flex: 0 1 auto;
+      max-height: 46%;
+    }
+
+    #blocks {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+      overflow-y: auto;
+      min-height: 0;
+    }
+
+    #blocks .card {
+      padding: 8px 10px;
+      background: var(--panel-alt);
+      box-shadow: none;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      grid-template-areas:
+        "name total"
+        "kv kv";
+      align-items: baseline;
+      gap: 2px 10px;
+    }
+
+    #blocks .card h3 {
+      grid-area: name;
+      margin: 0;
+      font-size: 12.5px;
+      justify-content: flex-start;
+      min-width: 0;
+    }
+
+    /* Name and total share the first line. */
+    #blocks .big {
+      grid-area: total;
+      font-size: 17px;
+      margin: 0;
+      white-space: nowrap;
+    }
+
+    /* Four columns, each with the label above its value. */
+    #blocks .kv {
+      grid-area: kv;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-rows: auto auto;
+      grid-auto-flow: column;
+      gap: 0 10px;
+      margin: 0;
+      font-size: 11.5px;
+    }
+
+    /* The time/usage bars flow under the key/values, one row each. */
+    #blocks .barlabel {
+      grid-column: 1 / -1;
+      font-size: 10px;
+      line-height: 1.3;
+      margin-top: 4px;
+    }
+
+    #blocks .bar {
+      grid-column: 1 / -1;
+      height: 4px;
+      margin-top: 2px;
+    }
+
+    #blocks .kv dt {
+      grid-row: 1;
+      font-size: 10.5px;
+    }
+
+    #blocks .kv dd {
+      grid-row: 2;
+      text-align: left;
+      font-weight: 600;
+      overflow-wrap: anywhere;
+    }
+
+    /* Chart fills the remaining space of the left column. */
+    #chartSection {
+      display: flex;
+      flex-direction: column;
+      flex: 1 1 auto;
+      min-height: 180px;
+    }
+
+    .chart {
+      display: flex;
+      flex-direction: column;
+      flex: 1 1 auto;
+      min-height: 0;
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      box-shadow: none;
+      background: transparent;
+      overflow: hidden;
+    }
+
+    #chart {
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+
+    #chart svg {
+      display: block;
+      width: 100%;
+      height: 100%;
+      min-width: 0;
+    }
+
+    .legend {
+      flex: none;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      gap: 6px 14px;
+      margin-top: 6px;
+      font-size: 11.5px;
+    }
+
+    .legend span.item {
+      white-space: nowrap;
+    }
+
+    /* Window panel: tabs, totals, then a scrollable table. */
+    #windowSection {
+      grid-area: window;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    #windowSection .tabs {
+      align-self: flex-start;
+      flex: none;
+      padding: 2px;
+    }
+
+    #windowSection .tabs button {
+      font-size: 11.5px;
+      padding: 4px 10px;
+    }
+
+    .totals {
+      flex: none;
+      grid-template-columns: none;
+      grid-auto-flow: column;
+      grid-auto-columns: minmax(0, 1fr);
+      margin: 8px 0;
+      border-radius: 8px;
+    }
+
+    .totals > div {
+      padding: 6px 9px;
+    }
+
+    .totals .lbl {
+      font-size: 10px;
+    }
+
+    .totals .val {
+      font-size: 15px;
+    }
+
+    .tablewrap {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow: auto;
+      border-radius: 8px;
+      box-shadow: none;
+    }
+
+    table {
+      min-width: 620px;
+      font-size: 12px;
+    }
+
+    th, td {
+      padding: 6px 9px;
+    }
+
+    th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: var(--panel-alt);
+    }
+
+    /* The credit is the last row of the grid: it never scrolls. */
+    .credit {
+      grid-area: footer;
+      font-size: 12px;
+      line-height: 18px;
+      height: 18px;
+      padding: 0;
+      margin: 0;
+      flex: none;
+    }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>llmwatch</h1>
+    <div class="status">
+      <span class="dot wait" id="statusDot"></span>
+      <span id="statusText">conectando</span>
+      <span aria-hidden="true">·</span>
+      <span id="updatedText">aguardando dados</span>
+    </div>
+    <section id="errorsSection" hidden>
+      <div class="errors">
+        <ul id="errors"></ul>
+      </div>
+    </section>
+    <nav class="header-nav" aria-label="Navegação principal">
+      <button id="installButton" type="button" hidden>Instalar app</button>
+      <button id="widgetButton" type="button" hidden title="Abrir janela flutuante sempre visível (Chrome/Edge)">
+        <span class="widgetIcon" aria-hidden="true"></span>Widget
+      </button>
+      <a href="/admin">Admin</a>
+      <button id="logoutButton" type="button">Sair</button>
+    </nav>
+  </header>
+
+  <section id="quotaSection">
+    <h2>Limites do plano</h2>
+    <div class="cards" id="quotas"></div>
+    <p class="empty" id="quotasEmpty" hidden>Nenhum limite configurado — <a href="/admin">cadastre em Admin</a></p>
+  </section>
+
+  <div class="leftcol">
+    <section id="blocksSection">
+      <h2>Bloco de 5h (estimado pelos tokens locais)</h2>
+      <div class="cards" id="blocks"></div>
+      <p class="empty" id="blocksEmpty" hidden>nenhum bloco ativo</p>
+    </section>
+
+    <section id="chartSection">
+      <h2>Últimas 24h</h2>
+      <div class="chart">
+        <div id="chart"></div>
+        <div class="legend" id="legend"></div>
+      </div>
+    </section>
+  </div>
+
+  <section id="windowSection">
+    <h2>Janela</h2>
+    <div class="tabs" id="tabs" role="group" aria-label="Janela de tempo"></div>
+    <div class="totals" id="totals"></div>
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">Provider</th>
+            <th scope="col">Modelo</th>
+            <th scope="col">Total</th>
+            <th scope="col">Input</th>
+            <th scope="col">Output</th>
+            <th scope="col">Cache read</th>
+            <th scope="col">Cache write</th>
+            <th scope="col">Requests</th>
+            <th scope="col">Custo</th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+    <p class="empty" id="rowsEmpty" hidden>nenhum uso registrado nesta janela</p>
+  </section>
+
+  <footer class="credit">desenvolvido por <a href="https://github.com/fthiago01" target="_blank" rel="noopener noreferrer">fthiago01</a></footer>
+
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---------------------------------------------------------------- helpers
+
+  var SVG_NS = "http://www.w3.org/2000/svg";
+
+  function el(tag, cls, text) {
+    var node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (text !== undefined && text !== null) node.textContent = String(text);
+    return node;
+  }
+
+  function svgEl(tag, attrs) {
+    var node = document.createElementNS(SVG_NS, tag);
+    if (attrs) {
+      for (var k in attrs) {
+        if (Object.prototype.hasOwnProperty.call(attrs, k) && attrs[k] !== null && attrs[k] !== undefined) {
+          node.setAttribute(k, String(attrs[k]));
+        }
+      }
+    }
+    return node;
+  }
+
+  function clear(node) {
+    while (node.firstChild) node.removeChild(node.firstChild);
+  }
+
+  // formatCompact renders a token count in a short human readable form.
+  function formatCompact(n) {
+    n = Number(n) || 0;
+    var abs = Math.abs(n);
+    if (abs >= 1e9) return trimZero(n / 1e9) + "B";
+    if (abs >= 1e6) return trimZero(n / 1e6) + "M";
+    if (abs >= 1e3) return trimZero(n / 1e3) + "k";
+    return trimZero(n);
+  }
+
+  function trimZero(v) {
+    var s = v.toFixed(1);
+    if (s.indexOf(".") >= 0) s = s.replace(/\.0$/, "");
+    return s;
+  }
+
+  // formatInt renders an integer with thousand separators.
+  function formatInt(n) {
+    n = Number(n) || 0;
+    var neg = n < 0;
+    var s = String(Math.abs(Math.trunc(n)));
+    var out = "";
+    while (s.length > 3) {
+      out = "," + s.slice(-3) + out;
+      s = s.slice(0, -3);
+    }
+    out = s + out;
+    return (neg ? "-" : "") + out;
+  }
+
+  function formatCost(v) {
+    v = Number(v) || 0;
+    if (v === 0) return "$0";
+    if (v < 0.01) return "$" + v.toFixed(4);
+    if (v < 1) return "$" + v.toFixed(3);
+    return "$" + v.toFixed(2);
+  }
+
+  function formatClock(date) {
+    if (!date) return "--:--";
+    var d = new Date(date);
+    if (isNaN(d.getTime())) return "--:--";
+    return pad(d.getHours()) + ":" + pad(d.getMinutes());
+  }
+
+  function pad(v) {
+    return v < 10 ? "0" + v : String(v);
+  }
+
+  function formatDuration(ms) {
+    if (!isFinite(ms) || ms < 0) ms = 0;
+    var total = Math.floor(ms / 1000);
+    var h = Math.floor(total / 3600);
+    var m = Math.floor((total % 3600) / 60);
+    var s = total % 60;
+    return pad(h) + ":" + pad(m) + ":" + pad(s);
+  }
+
+  // Provider colors are assigned by alphabetical order in the current
+  // snapshot, so similar provider names always receive distinct colors.
+  var PALETTE = [
+    "#1464d2", "#d43d51", "#16845b", "#8a3ffc",
+    "#b85c00", "#00869a", "#8f3bb7", "#7a6d00",
+    "#d12f82", "#4b5f16"
+  ];
+
+  var providerColors = {};
+
+  function collectSnapshotProviders(snapshot) {
+    var providers = {};
+    function add(provider) {
+      if (provider !== null && provider !== undefined && String(provider) !== "") {
+        providers[String(provider)] = true;
+      }
+    }
+
+    var windows = (snapshot && snapshot.windows) || [];
+    windows.forEach(function (win) {
+      ((win && win.by_provider) || []).forEach(function (row) {
+        add(row && row.provider);
+      });
+    });
+
+    ((snapshot && snapshot.blocks) || []).forEach(function (block) {
+      add(block && block.provider);
+    });
+
+    ((snapshot && snapshot.hourly) || []).forEach(function (bucket) {
+      var map = (bucket && bucket.by_provider) || {};
+      Object.keys(map).forEach(add);
+    });
+
+    ((snapshot && snapshot.quotas) || []).forEach(function (quota) {
+      add(quota && quota.provider);
+    });
+
+    return Object.keys(providers).sort();
+  }
+
+  function rebuildProviderColors(snapshot) {
+    providerColors = {};
+    collectSnapshotProviders(snapshot).forEach(function (provider, index) {
+      providerColors[provider] = index < PALETTE.length
+        ? PALETTE[index]
+        : "hsl(" + ((index * 137.508) % 360).toFixed(3) + ", 72%, 42%)";
+    });
+  }
+
+  function colorFor(name) {
+    var provider = String(name || "");
+    if (!providerColors[provider]) {
+      rebuildProviderColors(state.snapshot);
+    }
+    return providerColors[provider] || PALETTE[0];
+  }
+
+  // ------------------------------------------------------------- app state
+
+  var WINDOWS = ["5h", "hoje", "7d", "30d"];
+  var STORAGE_KEY = "llmwatch.window";
+
+  var state = {
+    snapshot: null,
+    windowName: "5h",
+    backoff: 1000,
+    socket: null,
+    timer: null
+  };
+
+  // quotaCountdowns holds the reset countdowns currently on screen, so the
+  // local clock can refresh them without rebuilding the whole section.
+  var quotaCountdowns = [];
+  // quotaAges holds the "atualizado há" labels currently on screen.
+  var quotaAges = [];
+
+  var refs = {
+    dot: document.getElementById("statusDot"),
+    statusText: document.getElementById("statusText"),
+    updatedText: document.getElementById("updatedText"),
+    tabs: document.getElementById("tabs"),
+    totals: document.getElementById("totals"),
+    rows: document.getElementById("rows"),
+    rowsEmpty: document.getElementById("rowsEmpty"),
+    quotas: document.getElementById("quotas"),
+    quotasEmpty: document.getElementById("quotasEmpty"),
+    blocks: document.getElementById("blocks"),
+    blocksEmpty: document.getElementById("blocksEmpty"),
+    chart: document.getElementById("chart"),
+    legend: document.getElementById("legend"),
+    errorsSection: document.getElementById("errorsSection"),
+    errors: document.getElementById("errors"),
+    logoutButton: document.getElementById("logoutButton"),
+    installButton: document.getElementById("installButton"),
+    widgetButton: document.getElementById("widgetButton")
+  };
+
+  // -------------------------------------------------------------- logout
+
+  function bindLogout() {
+    if (!refs.logoutButton) return;
+    refs.logoutButton.addEventListener("click", function () {
+      fetch("/api/logout", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: "{}"
+      }).then(function () {
+        window.location.href = "/login";
+      }).catch(function () {
+        window.location.href = "/login";
+      });
+    });
+  }
+
+  // ------------------------------------------------------------------ pwa
+
+  // registerServiceWorker installs the offline shell of the application.
+  //
+  // The worker is registered on the load event so it never competes with
+  // the first render of the dashboard.
+  function registerServiceWorker() {
+    if (!("serviceWorker" in navigator)) return;
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function (err) {
+        console.warn("service worker não registrado:", err);
+      });
+    });
+  }
+
+  // isStandalone reports whether the page already runs as an installed app.
+  //
+  // In that case the install button must never be shown.
+  function isStandalone() {
+    try {
+      return window.matchMedia("(display-mode: standalone)").matches === true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // installPrompt holds the event fired by the browser when the app can be
+  // installed. It is kept so the button can trigger the native dialog.
+  var installPrompt = null;
+
+  function bindInstall() {
+    if (!refs.installButton) return;
+
+    window.addEventListener("beforeinstallprompt", function (ev) {
+      if (isStandalone()) return;
+      ev.preventDefault();
+      installPrompt = ev;
+      refs.installButton.hidden = false;
+    });
+
+    window.addEventListener("appinstalled", function () {
+      installPrompt = null;
+      refs.installButton.hidden = true;
+    });
+
+    refs.installButton.addEventListener("click", function () {
+      if (!installPrompt) return;
+      var ev = installPrompt;
+      installPrompt = null;
+      refs.installButton.hidden = true;
+      ev.prompt();
+      if (ev.userChoice && typeof ev.userChoice.then === "function") {
+        ev.userChoice.then(function () {
+          refs.installButton.hidden = true;
+        });
+      }
+    });
+  }
+
+  // --------------------------------------------------------------- widget
+
+  // The widget is a Document Picture-in-Picture window: a small floating
+  // window that stays above the other applications. It mirrors the quota
+  // limits of the main window, without opening a second WebSocket.
+  var pipWindow = null;
+  var PIP_SIZE_KEY = "llmwatch.pip.size";
+
+  // WIDGET_CSS is the style sheet of the floating window.
+  //
+  // It is injected as text, so no markup is ever interpreted as HTML.
+  var WIDGET_CSS = [
+    ":root{--bg:#f6f7f9;--panel:#ffffff;--panel-alt:#f0f2f5;--border:#dfe3e8;",
+    "--text:#1c2128;--muted:#636c76;--accent:#2f6feb;--accent-soft:#dbe7ff;",
+    "--ok:#1a7f4b;--warn:#b26a00;--bad:#c0392b;--grid:#eceff3}",
+    "@media (prefers-color-scheme: dark){:root{--bg:#0e1116;--panel:#161b22;",
+    "--panel-alt:#1c232c;--border:#2b333d;--text:#e6edf3;--muted:#9198a1;",
+    "--accent:#58a6ff;--accent-soft:#1d2b45;--ok:#3fb950;--warn:#d29922;",
+    "--bad:#f85149;--grid:#262d36}}",
+    "*{box-sizing:border-box}",
+    "html,body{margin:0;padding:0;height:100%}",
+    "body{background:var(--bg);color:var(--text);",
+    "font:12px/1.35 system-ui,-apple-system,'Segoe UI',Roboto,Ubuntu,Cantarell,sans-serif;",
+    "-webkit-text-size-adjust:100%;overflow:hidden}",
+    ".whead{display:flex;align-items:center;gap:6px;padding:6px 8px;",
+    "border-bottom:1px solid var(--border);background:var(--panel)}",
+    ".wdot{width:8px;height:8px;border-radius:50%;background:var(--muted);flex:none}",
+    ".wdot.on{background:var(--ok)}.wdot.off{background:var(--bad)}.wdot.wait{background:var(--warn)}",
+    ".wname{font-weight:650;font-size:12px}",
+    ".wage{color:var(--muted);font-size:10.5px;margin-left:auto;white-space:nowrap}",
+    ".wbody{padding:6px 8px;overflow-y:auto;height:calc(100% - 31px)}",
+    ".wq{margin-bottom:7px;padding-bottom:6px;border-bottom:1px solid var(--border)}",
+    ".wq:last-child{border-bottom:0;margin-bottom:0;padding-bottom:0}",
+    ".wqname{font-weight:650;font-size:11.5px;margin-bottom:3px;",
+    "white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
+    ".wwin{margin-top:3px}",
+    ".wwinhead{display:flex;align-items:baseline;justify-content:space-between;gap:6px}",
+    ".wwinname{color:var(--muted);font-size:10px;white-space:nowrap;",
+    "overflow:hidden;text-overflow:ellipsis}",
+    ".wleft{font-size:12px;font-weight:650;font-variant-numeric:tabular-nums;white-space:nowrap}",
+    ".wbar{height:4px;border-radius:999px;background:var(--grid);overflow:hidden;margin-top:2px}",
+    ".wbar>i{display:block;height:100%;border-radius:999px;background:var(--accent)}",
+    ".wbar.ok>i{background:var(--ok)}.wbar.warn>i{background:var(--warn)}.wbar.bad>i{background:var(--bad)}",
+    ".wfoot{display:flex;justify-content:space-between;gap:6px;margin-top:2px;",
+    "font-size:10px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}",
+    ".wreset{overflow:hidden;text-overflow:ellipsis}",
+    ".wwarn{color:var(--warn);font-size:10.5px;overflow-wrap:anywhere}",
+    ".wempty{color:var(--muted);font-size:11px}",
+    "@media (max-width: 260px){.wreset{display:none}.wfoot{justify-content:flex-end}}"
+  ].join("");
+
+  // pipSize returns the size of the floating window.
+  //
+  // The size chosen by the user is remembered; otherwise the height is
+  // derived from the number of quotas shown.
+  function pipSize() {
+    var saved = null;
+    try {
+      var raw = window.localStorage.getItem(PIP_SIZE_KEY);
+      if (raw) {
+        var parsed = JSON.parse(raw);
+        if (parsed && Number(parsed.width) > 0 && Number(parsed.height) > 0) {
+          saved = { width: Math.round(Number(parsed.width)), height: Math.round(Number(parsed.height)) };
+        }
+      }
+    } catch (e) {
+      /* localStorage unavailable: the default size is used. */
+    }
+    if (saved) return saved;
+
+    var quotas = (state.snapshot && state.snapshot.quotas) || [];
+    var height = 56 + 112 * quotas.length;
+    if (height > 560) height = 560;
+    return { width: 340, height: height };
+  }
+
+  // savePipSize remembers the size of the floating window.
+  function savePipSize(width, height) {
+    try {
+      window.localStorage.setItem(PIP_SIZE_KEY, JSON.stringify({ width: width, height: height }));
+    } catch (e) {
+      /* localStorage unavailable: the size is simply not remembered. */
+    }
+  }
+
+  // widgetCountdowns holds the reset countdowns of the floating window.
+  var widgetCountdowns = [];
+
+  // widgetStatus mirrors the connection state of the main window.
+  var widgetStatus = { stateName: "wait", connected: false };
+
+  // buildWidget renders the whole content of the floating window.
+  //
+  // Every node is created with createElement and textContent, so no data
+  // coming from the server is ever interpreted as HTML.
+  function buildWidget(doc, body) {
+    widgetCountdowns = [];
+    while (body.firstChild) body.removeChild(body.firstChild);
+
+    var head = doc.createElement("div");
+    head.className = "whead";
+
+    var dot = doc.createElement("span");
+    dot.className = "wdot " + widgetStatus.stateName;
+    head.appendChild(dot);
+
+    var name = doc.createElement("span");
+    name.className = "wname";
+    name.textContent = "llmwatch";
+    head.appendChild(name);
+
+    var age = doc.createElement("span");
+    age.className = "wage";
+    age.textContent = widgetAgeText();
+    head.appendChild(age);
+
+    body.appendChild(head);
+
+    var content = doc.createElement("div");
+    content.className = "wbody";
+
+    var quotas = (state.snapshot && state.snapshot.quotas) || [];
+    if (!quotas.length) {
+      var empty = doc.createElement("div");
+      empty.className = "wempty";
+      empty.textContent = "Nenhum limite configurado";
+      content.appendChild(empty);
+    } else {
+      quotas.forEach(function (q) {
+        content.appendChild(buildWidgetQuota(doc, q));
+      });
+    }
+
+    body.appendChild(content);
+  }
+
+  // buildWidgetQuota renders one quota and its windows.
+  function buildWidgetQuota(doc, q) {
+    var wrap = doc.createElement("div");
+    wrap.className = "wq";
+
+    var qname = doc.createElement("div");
+    qname.className = "wqname";
+    var configured = String(q.name || "").trim();
+    qname.textContent = configured || providerLabel(q.provider);
+    wrap.appendChild(qname);
+
+    var windows = q.windows || [];
+    windows.forEach(function (w) {
+      wrap.appendChild(buildWidgetWindow(doc, w));
+    });
+
+    if (q.error) {
+      var warn = doc.createElement("div");
+      warn.className = "wwarn";
+      warn.textContent = String(q.error).slice(0, 120);
+      wrap.appendChild(warn);
+    }
+
+    return wrap;
+  }
+
+  // buildWidgetWindow renders one quota window: name, bar, remaining and
+  // the countdown until the reset.
+  function buildWidgetWindow(doc, w) {
+    var win = doc.createElement("div");
+    win.className = "wwin";
+
+    var used = Number(w.used_percent);
+    if (!isFinite(used)) used = 0;
+    used = Math.max(0, Math.min(100, used));
+    var remaining = Math.max(0, 100 - used);
+
+    var head = doc.createElement("div");
+    head.className = "wwinhead";
+
+    var wname = doc.createElement("span");
+    wname.className = "wwinname";
+    wname.textContent = w.name || "-";
+    head.appendChild(wname);
+
+    var left = doc.createElement("span");
+    left.className = "wleft";
+    left.textContent = "resta " + formatPercent(remaining);
+    head.appendChild(left);
+
+    win.appendChild(head);
+
+    var bar = doc.createElement("div");
+    bar.className = "wbar " + levelClass(used);
+    var fill = doc.createElement("i");
+    fill.style.width = used.toFixed(2) + "%";
+    bar.appendChild(fill);
+    win.appendChild(bar);
+
+    var foot = doc.createElement("div");
+    foot.className = "wfoot";
+
+    var resetText = doc.createElement("span");
+    resetText.className = "wreset";
+    foot.appendChild(resetText);
+
+    if (w.resets_at) {
+      var reset = new Date(w.resets_at);
+      if (!isNaN(reset.getTime())) {
+        var entry = { node: resetText, at: reset.getTime() };
+        widgetCountdowns.push(entry);
+        updateWidgetCountdown(entry);
+      }
+    } else {
+      resetText.textContent = "";
+    }
+
+    win.appendChild(foot);
+    return win;
+  }
+
+  // updateWidgetCountdown refreshes a single countdown of the widget.
+  function updateWidgetCountdown(entry) {
+    var left = entry.at - Date.now();
+    if (left <= 0) {
+      entry.node.textContent = "reseta agora";
+      return;
+    }
+    entry.node.textContent = "reseta em " + formatCountdown(left);
+  }
+
+  // updateWidgetCountdowns refreshes every countdown of the widget.
+  function updateWidgetCountdowns() {
+    for (var i = 0; i < widgetCountdowns.length; i++) {
+      updateWidgetCountdown(widgetCountdowns[i]);
+    }
+  }
+
+  // widgetAgeText renders the age of the last snapshot.
+  function widgetAgeText() {
+    var snap = state.snapshot;
+    if (!snap || !snap.generated_at) return "aguardando dados";
+    var age = Date.now() - new Date(snap.generated_at).getTime();
+    if (!isFinite(age) || age < 0) age = 0;
+    return "atualizado há " + Math.floor(age / 1000) + "s";
+  }
+
+  // updateWidgetHeader refreshes the age label of the floating window.
+  function updateWidgetHeader() {
+    if (!pipWindow) return;
+    var doc = pipWindow.document;
+    var age = doc.querySelector(".wage");
+    if (age) age.textContent = widgetAgeText();
+    var dot = doc.querySelector(".wdot");
+    if (dot) dot.className = "wdot " + widgetStatus.stateName;
+  }
+
+  // renderWidget redraws the floating window with the current snapshot.
+  function renderWidget() {
+    if (!pipWindow) return;
+    var doc = pipWindow.document;
+    var body = doc.body;
+    if (!body) return;
+    buildWidget(doc, body);
+  }
+
+  // openWidget opens the floating window with the quota limits.
+  function openWidget() {
+    var size = pipSize();
+    return window.documentPictureInPicture.requestWindow({
+      width: size.width,
+      height: size.height
+    }).then(function (pip) {
+      pipWindow = pip;
+
+      var doc = pip.document;
+      doc.title = "llmwatch";
+
+      var style = doc.createElement("style");
+      style.textContent = WIDGET_CSS;
+      doc.head.appendChild(style);
+
+      var body = doc.body;
+      if (!body) {
+        body = doc.createElement("body");
+        doc.documentElement.appendChild(body);
+      }
+
+      buildWidget(doc, body);
+
+      pip.addEventListener("pagehide", function () {
+        if (pipWindow === pip) pipWindow = null;
+        widgetCountdowns = [];
+      });
+
+      // The size chosen by the user is remembered for the next opening.
+      pip.addEventListener("pagehide", function () {
+        try {
+          savePipSize(pip.width, pip.height);
+        } catch (e) {
+          /* nothing to do: the size is simply not remembered. */
+        }
+      });
+
+      return pip;
+    }).catch(function (err) {
+      console.warn("janela flutuante indisponível:", err);
+    });
+  }
+
+  // toggleWidget opens the floating window, or closes the open one.
+  function toggleWidget() {
+    if (pipWindow) {
+      pipWindow.close();
+      pipWindow = null;
+      return;
+    }
+    openWidget();
+  }
+
+  function bindWidget() {
+    if (!refs.widgetButton) return;
+    if (!("documentPictureInPicture" in window)) return;
+
+    refs.widgetButton.hidden = false;
+    refs.widgetButton.addEventListener("click", function () {
+      toggleWidget();
+    });
+  }
+
+  // ---------------------------------------------------------- window picker
+
+  function loadWindowName() {
+    try {
+      var v = window.localStorage.getItem(STORAGE_KEY);
+      if (v && WINDOWS.indexOf(v) >= 0) return v;
+    } catch (e) {
+      /* localStorage unavailable: fall back to the default window. */
+    }
+    return "5h";
+  }
+
+  function saveWindowName(name) {
+    try {
+      window.localStorage.setItem(STORAGE_KEY, name);
+    } catch (e) {
+      /* localStorage unavailable: the choice is simply not remembered. */
+    }
+  }
+
+  function buildTabs() {
+    clear(refs.tabs);
+    WINDOWS.forEach(function (name) {
+      var btn = el("button", null, name);
+      btn.type = "button";
+      btn.setAttribute("aria-pressed", name === state.windowName ? "true" : "false");
+      btn.addEventListener("click", function () {
+        if (state.windowName === name) return;
+        state.windowName = name;
+        saveWindowName(name);
+        buildTabs();
+        renderWindow();
+      });
+      refs.tabs.appendChild(btn);
+    });
+  }
+
+  // -------------------------------------------------------------- rendering
+
+  function currentWindow() {
+    var snap = state.snapshot;
+    if (!snap || !snap.windows) return null;
+    for (var i = 0; i < snap.windows.length; i++) {
+      if (snap.windows[i].name === state.windowName) return snap.windows[i];
+    }
+    return snap.windows.length ? snap.windows[0] : null;
+  }
+
+  function renderTotals(sum) {
+    clear(refs.totals);
+    if (!sum) return;
+    var items = [
+      ["total", sum.total],
+      ["input", sum.input],
+      ["output", sum.output],
+      ["cache read", sum.cache_read],
+      ["cache write", sum.cache_write]
+    ];
+    items.forEach(function (item) {
+      var cell = el("div");
+      cell.appendChild(el("div", "lbl", item[0]));
+      var val = el("div", "val", formatCompact(item[1]));
+      val.title = formatInt(item[1]);
+      cell.appendChild(val);
+      refs.totals.appendChild(cell);
+    });
+
+    var reqCell = el("div");
+    reqCell.appendChild(el("div", "lbl", "requests"));
+    var reqVal = el("div", "val", formatCompact(sum.requests));
+    reqVal.title = formatInt(sum.requests);
+    reqCell.appendChild(reqVal);
+    refs.totals.appendChild(reqCell);
+
+    var cost = Number(sum.cost) || 0;
+    if (cost > 0) {
+      var costCell = el("div");
+      costCell.appendChild(el("div", "lbl", "custo"));
+      var costVal = el("div", "val", formatCost(cost));
+      costVal.title = "$" + cost.toFixed(6);
+      costCell.appendChild(costVal);
+      refs.totals.appendChild(costCell);
+    }
+  }
+
+  function renderRows(win) {
+    clear(refs.rows);
+    var rows = (win && win.by_provider) || [];
+    refs.rowsEmpty.hidden = rows.length > 0;
+
+    rows.forEach(function (row) {
+      var tr = el("tr");
+
+      var tdProv = el("td");
+      var swatch = el("span", "prov");
+      swatch.style.background = colorFor(row.provider);
+      tdProv.appendChild(swatch);
+      tdProv.appendChild(document.createTextNode(row.provider || "-"));
+      tr.appendChild(tdProv);
+
+      tr.appendChild(el("td", null, row.model || "-"));
+
+      appendNumber(tr, row.total);
+      appendNumber(tr, row.input);
+      appendNumber(tr, row.output);
+      appendNumber(tr, row.cache_read);
+      appendNumber(tr, row.cache_write);
+      appendNumber(tr, row.requests);
+
+      var cost = Number(row.cost) || 0;
+      var tdCost = el("td", null, formatCost(cost));
+      tdCost.title = "$" + cost.toFixed(6);
+      tr.appendChild(tdCost);
+
+      refs.rows.appendChild(tr);
+    });
+  }
+
+  function appendNumber(tr, value) {
+    var td = el("td", null, formatCompact(value));
+    td.title = formatInt(value);
+    tr.appendChild(td);
+  }
+
+  function renderWindow() {
+    var win = currentWindow();
+    renderTotals(win ? win.sum : null);
+    renderRows(win);
+  }
+
+  // ---------------------------------------------------------------- quotas
+
+  // PROVIDER_NAMES maps a quota provider to its friendly display name.
+  var PROVIDER_NAMES = {
+    "anthropic": "Claude",
+    "minimax-coding-plan": "MiniMax",
+    "openai": "OpenAI·Codex"
+  };
+
+  // providerLabel returns the friendly name of a quota provider.
+  function providerLabel(provider) {
+    var key = String(provider || "");
+    return PROVIDER_NAMES[key] || key;
+  }
+
+  // formatAgo renders the age of a timestamp as a short human readable text.
+  function formatAgo(date) {
+    var d = new Date(date);
+    if (isNaN(d.getTime())) return "";
+    var ms = Date.now() - d.getTime();
+    if (!isFinite(ms) || ms < 0) ms = 0;
+    var s = Math.floor(ms / 1000);
+    if (s < 60) return s + "s";
+    var m = Math.floor(s / 60);
+    if (m < 60) return m + "min";
+    var h = Math.floor(m / 60);
+    if (h < 24) return h + "h" + (m % 60 ? (m % 60) + "min" : "");
+    var d2 = Math.floor(h / 24);
+    if (d2 < 30) return d2 + "d" + (h % 24 ? (h % 24) + "h" : "");
+    return d2 + "d";
+  }
+
+  // formatCountdown renders the time left until a reset as "2h13m".
+  //
+  // Durations longer than a day are rendered in days, e.g. "3d4h".
+  function formatCountdown(ms) {
+    if (!isFinite(ms) || ms < 0) ms = 0;
+    var total = Math.floor(ms / 1000);
+    var h = Math.floor(total / 3600);
+    var m = Math.floor((total % 3600) / 60);
+    if (h >= 24) {
+      var d = Math.floor(h / 24);
+      var rest = h % 24;
+      return d + "d" + (rest > 0 ? rest + "h" : "");
+    }
+    if (h > 0) return h + "h" + pad(m) + "m";
+    if (m > 0) return m + "m";
+    return Math.floor(total % 60) + "s";
+  }
+
+  // renderQuotas draws one card per quota status reported by the providers.
+  function renderQuotas() {
+    clear(refs.quotas);
+    quotaCountdowns = [];
+    quotaAges = [];
+
+    var quotas = (state.snapshot && state.snapshot.quotas) || [];
+    refs.quotasEmpty.hidden = quotas.length > 0;
+
+    quotas.forEach(function (q) {
+      refs.quotas.appendChild(buildQuotaCard(q));
+    });
+  }
+
+  function buildQuotaCard(q) {
+    var card = el("div", "quota");
+
+    var head = el("h3");
+    var swatch = el("span", "prov");
+    swatch.style.background = colorFor(q.provider);
+    head.appendChild(swatch);
+
+    var configuredName = String(q.name || "").trim();
+    if (configuredName) {
+      head.appendChild(document.createTextNode(configuredName));
+      head.appendChild(el("span", "badge", providerLabel(q.provider)));
+    } else {
+      head.appendChild(document.createTextNode(providerLabel(q.provider)));
+    }
+    if (q.plan) {
+      head.appendChild(el("span", "plan", q.plan));
+    }
+    if (q.source) {
+      head.appendChild(el("span", "badge", q.source));
+    }
+
+    // The provider name and the "updated" age share the first row.
+    var qhead = el("div", "qhead");
+    qhead.appendChild(head);
+
+    var updated = parseQuotaTime(q.updated_at);
+    if (updated) {
+      var age = el("div", "qmeta", "atualizado há " + formatAgo(updated));
+      qhead.appendChild(age);
+      quotaAges.push({ node: age, at: updated.getTime() });
+    }
+    card.appendChild(qhead);
+
+    var windows = q.windows || [];
+
+    if (windows.length) {
+      var wins = el("div", "qwindows");
+      windows.forEach(function (w) {
+        wins.appendChild(buildQuotaWindow(w));
+      });
+      card.appendChild(wins);
+    } else if (!q.error) {
+      card.appendChild(el("div", "qempty", "sem dados"));
+    }
+
+    if (q.error) {
+      card.appendChild(el("div", "qwarn", q.error));
+    }
+
+    // The Claude status line is only written while the Claude Code runs,
+    // so an old value may not reflect the current consumption.
+    if (updated && q.source === "claude-statusline" && Date.now() - updated.getTime() > 30 * 60 * 1000) {
+      card.appendChild(el("div", "qstale",
+        "dado pode estar desatualizado — atualiza quando o Claude Code está em uso"));
+    }
+
+    return card;
+  }
+
+  // parseQuotaTime parses an updated_at timestamp, ignoring the zero time.
+  function parseQuotaTime(value) {
+    if (!value) return null;
+    var d = new Date(value);
+    if (isNaN(d.getTime())) return null;
+    if (d.getFullYear() <= 2000) return null;
+    return d;
+  }
+
+  function buildQuotaWindow(w) {
+    var wrap = el("div", "qwin");
+
+    var used = Number(w.used_percent);
+    if (!isFinite(used)) used = 0;
+    used = Math.max(0, Math.min(100, used));
+    var remaining = Math.max(0, 100 - used);
+
+    var head = el("div", "qwinhead");
+    head.appendChild(el("span", "wname", w.name || "-"));
+    wrap.appendChild(head);
+
+    var left = el("div", "qleft", "resta " + formatPercent(remaining));
+    left.title = "usado " + formatPercent(used) + " · resta " + formatPercent(remaining);
+    wrap.appendChild(left);
+
+    var bar = el("div", "bar " + levelClass(used));
+    var fill = el("i");
+    fill.style.width = used.toFixed(2) + "%";
+    bar.appendChild(fill);
+    bar.title = "usado " + formatPercent(used) + " · resta " + formatPercent(remaining);
+    wrap.appendChild(bar);
+
+    // The usage and the reset countdown share the last row of the window.
+    var foot = el("div", "qfoot");
+
+    var limit = Number(w.limit) || 0;
+    if (limit > 0) {
+      var usedAbs = Number(w.used) || 0;
+      var usage = el("div", "qmeta",
+        formatCompact(usedAbs) + " / " + formatCompact(limit));
+      usage.title = formatInt(usedAbs) + " / " + formatInt(limit);
+      foot.appendChild(usage);
+    }
+
+    if (w.resets_at) {
+      var reset = new Date(w.resets_at);
+      if (!isNaN(reset.getTime())) {
+        var countdown = el("div", "qmeta");
+        var label = el("span", "countdown");
+        countdown.appendChild(label);
+        countdown.title = reset.toLocaleString();
+        foot.appendChild(countdown);
+
+        var entry = { node: label, at: reset.getTime(), clock: formatClock(reset) };
+        quotaCountdowns.push(entry);
+        updateQuotaCountdown(entry);
+      }
+    }
+
+    if (foot.childNodes.length) wrap.appendChild(foot);
+
+    return wrap;
+  }
+
+  // formatPercent renders a percentage with at most one decimal.
+  function formatPercent(v) {
+    v = Number(v) || 0;
+    if (Math.abs(v - Math.round(v)) < 0.05) return Math.round(v) + "%";
+    return v.toFixed(1) + "%";
+  }
+
+  // updateQuotaCountdown refreshes a single reset countdown.
+  function updateQuotaCountdown(entry) {
+    var left = entry.at - Date.now();
+    if (left <= 0) {
+      entry.node.textContent = "reseta agora";
+      return;
+    }
+    entry.node.textContent = "reseta em " + formatCountdown(left) + " (" + entry.clock + ")";
+  }
+
+  // updateQuotaCountdowns refreshes the reset countdowns in place.
+  function updateQuotaCountdowns() {
+    for (var i = 0; i < quotaCountdowns.length; i++) {
+      updateQuotaCountdown(quotaCountdowns[i]);
+    }
+  }
+
+  // updateQuotaAges refreshes the "atualizado há" labels in place.
+  function updateQuotaAges() {
+    for (var i = 0; i < quotaAges.length; i++) {
+      var entry = quotaAges[i];
+      entry.node.textContent = "atualizado há " + formatAgo(entry.at);
+    }
+  }
+
+  function renderBlocks() {
+    clear(refs.blocks);
+    var blocks = (state.snapshot && state.snapshot.blocks) || [];
+    refs.blocksEmpty.hidden = blocks.length > 0;
+
+    blocks.forEach(function (b) {
+      refs.blocks.appendChild(buildBlockCard(b));
+    });
+  }
+
+  function buildBlockCard(b) {
+    var card = el("div", "card");
+
+    var head = el("h3");
+    var swatch = el("span", "prov");
+    swatch.style.background = colorFor(b.provider);
+    head.appendChild(swatch);
+    head.appendChild(document.createTextNode(b.provider || "-"));
+    card.appendChild(head);
+
+    var big = el("div", "big", formatCompact(b.total));
+    big.title = formatInt(b.total) + " tokens";
+    card.appendChild(big);
+
+    var dl = el("dl", "kv");
+    addKv(dl, "requests", formatCompact(b.requests), formatInt(b.requests));
+    addKv(dl, "tokens/min", formatCompact(b.tokens_per_min), String(b.tokens_per_min));
+    addKv(dl, "início", formatClock(b.start), new Date(b.start).toLocaleString());
+    var resetCell = el("dd");
+    resetCell.appendChild(el("span", "countdown", formatClock(b.reset_at)));
+    resetCell.title = new Date(b.reset_at).toLocaleString();
+    addKvNode(dl, "reset", resetCell);
+    card.appendChild(dl);
+
+    // Progress of the block time itself (elapsed since start).
+    var start = new Date(b.start).getTime();
+    var reset = new Date(b.reset_at).getTime();
+    var totalMs = reset - start;
+    var elapsedPct = 0;
+    if (isFinite(start) && isFinite(reset) && totalMs > 0) {
+      elapsedPct = ((Date.now() - start) / totalMs) * 100;
+    }
+    elapsedPct = Math.max(0, Math.min(100, elapsedPct));
+
+    var timeLabel = el("div", "barlabel");
+    timeLabel.appendChild(el("span", null, "tempo do bloco"));
+    timeLabel.appendChild(el("span", null, Math.round(elapsedPct) + "%"));
+    card.appendChild(timeLabel);
+
+    var timeBar = el("div", "bar");
+    var timeFill = el("i");
+    timeFill.style.width = elapsedPct.toFixed(2) + "%";
+    timeBar.appendChild(timeFill);
+    card.appendChild(timeBar);
+
+    // Usage against the configured limit.
+    var limit = Number(b.limit) || 0;
+    if (limit > 0) {
+      var pct = Number(b.percent_used) || 0;
+      var shown = Math.max(0, Math.min(100, pct));
+
+      var useLabel = el("div", "barlabel");
+      useLabel.appendChild(el("span", null, "uso do limite"));
+      useLabel.appendChild(el("span", null, pct.toFixed(1) + "%"));
+      card.appendChild(useLabel);
+
+      var useBar = el("div", "bar " + levelClass(pct));
+      var useFill = el("i");
+      useFill.style.width = shown.toFixed(2) + "%";
+      useBar.appendChild(useFill);
+      useBar.title = formatInt(b.total) + " / " + formatInt(limit) + " tokens (" + pct.toFixed(1) + "%)";
+      card.appendChild(useBar);
+    }
+
+    return card;
+  }
+
+  function levelClass(pct) {
+    if (pct < 70) return "ok";
+    if (pct < 90) return "warn";
+    return "bad";
+  }
+
+  function addKv(dl, label, value, title) {
+    var dd = el("dd", null, value);
+    if (title) dd.title = title;
+    addKvNode(dl, label, dd);
+  }
+
+  function addKvNode(dl, label, node) {
+    dl.appendChild(el("dt", null, label));
+    dl.appendChild(node);
+  }
+
+  // chartSize returns the pixel size available for the chart drawing area.
+  //
+  // The container is measured at render time so the SVG always matches the
+  // space it actually has, instead of a fixed viewBox stretched by CSS.
+  // The legend lives next to the drawing area, so its height is discounted.
+  function chartSize() {
+    var node = refs.chart;
+    var w = node.clientWidth || 0;
+    var h = node.clientHeight || 0;
+    if (w <= 0) w = node.getBoundingClientRect().width || 0;
+    if (h <= 0) h = node.getBoundingClientRect().height || 0;
+    w = Math.floor(w);
+    h = Math.floor(h);
+    if (w < 1) w = 640;
+    if (h < 1) h = 220;
+    return { w: w, h: h };
+  }
+
+  function renderChart() {
+    clear(refs.chart);
+    clear(refs.legend);
+
+    var buckets = (state.snapshot && state.snapshot.hourly) || [];
+    if (!buckets.length) return;
+
+    var providers = [];
+    var seen = {};
+    buckets.forEach(function (bucket) {
+      var map = bucket.by_provider || {};
+      Object.keys(map).sort().forEach(function (p) {
+        if (!seen[p]) {
+          seen[p] = true;
+          providers.push(p);
+        }
+      });
+    });
+    providers.sort();
+
+    // The legend is drawn before the chart is measured: it takes space from
+    // the container, so the drawing area is only known once it is in place.
+    providers.forEach(function (p) {
+      var item = el("span", "item");
+      var sw = el("span", "prov");
+      sw.style.background = colorFor(p);
+      item.appendChild(sw);
+      item.appendChild(document.createTextNode(p));
+      refs.legend.appendChild(item);
+    });
+
+    var size = chartSize();
+    var W = size.w;
+    var H = size.h;
+    var padL = 46;
+    var padR = 12;
+    var padT = 12;
+    var padB = 26;
+    var plotW = W - padL - padR;
+    var plotH = H - padT - padB;
+    if (plotW < 1) plotW = 1;
+    if (plotH < 1) plotH = 1;
+
+    var max = 0;
+    buckets.forEach(function (bucket) {
+      var sum = 0;
+      var map = bucket.by_provider || {};
+      Object.keys(map).forEach(function (p) { sum += Number(map[p]) || 0; });
+      if (sum > max) max = sum;
+    });
+    if (max <= 0) max = 1;
+
+    var svg = svgEl("svg", {
+      width: "100%",
+      height: "100%",
+      viewBox: "0 0 " + W + " " + H,
+      preserveAspectRatio: "none",
+      role: "img",
+      "aria-label": "Tokens por hora nas últimas 24 horas"
+    });
+
+    // Horizontal grid lines with axis labels.
+    var ticks = 4;
+    for (var t = 0; t <= ticks; t++) {
+      var value = (max / ticks) * t;
+      var y = padT + plotH - (value / max) * plotH;
+      svg.appendChild(svgEl("line", {
+        x1: padL, y1: y, x2: W - padR, y2: y,
+        stroke: "var(--grid)", "stroke-width": 1
+      }));
+      var label = svgEl("text", {
+        x: padL - 7, y: y + 4,
+        "text-anchor": "end",
+        "font-size": 10,
+        fill: "var(--muted)"
+      });
+      label.textContent = formatCompact(value);
+      svg.appendChild(label);
+    }
+
+    var slot = plotW / buckets.length;
+    var barW = Math.max(2, slot * 0.66);
+
+    buckets.forEach(function (bucket, i) {
+      var x = padL + i * slot + (slot - barW) / 2;
+      var map = bucket.by_provider || {};
+      var cursor = padT + plotH;
+
+      Object.keys(map).sort().forEach(function (p) {
+        var tokens = Number(map[p]) || 0;
+        if (tokens <= 0) return;
+        var h = (tokens / max) * plotH;
+        cursor -= h;
+        var rect = svgEl("rect", {
+          x: x.toFixed(2),
+          y: cursor.toFixed(2),
+          width: barW.toFixed(2),
+          height: Math.max(h, 0.5).toFixed(2),
+          fill: colorFor(p),
+          rx: 1
+        });
+        var title = svgEl("title");
+        title.textContent = formatHour(bucket.hour) + " · " + p + ": " + formatInt(tokens) + " tokens";
+        rect.appendChild(title);
+        svg.appendChild(rect);
+      });
+
+      // Hour label below the axis (every third hour to avoid crowding).
+      if (i % 3 === 0) {
+        var hourText = svgEl("text", {
+          x: (x + barW / 2).toFixed(2),
+          y: H - 8,
+          "text-anchor": "middle",
+          "font-size": 10,
+          fill: "var(--muted)"
+        });
+        hourText.textContent = formatHour(bucket.hour);
+        svg.appendChild(hourText);
+      }
+    });
+
+    // Baseline.
+    svg.appendChild(svgEl("line", {
+      x1: padL, y1: padT + plotH, x2: W - padR, y2: padT + plotH,
+      stroke: "var(--border)", "stroke-width": 1
+    }));
+
+    refs.chart.appendChild(svg);
+  }
+
+  function formatHour(value) {
+    var d = new Date(value);
+    if (isNaN(d.getTime())) return "--:--";
+    return pad(d.getHours()) + ":" + pad(d.getMinutes());
+  }
+
+  function renderErrors() {
+    var errs = (state.snapshot && state.snapshot.errors) || [];
+    refs.errorsSection.hidden = errs.length === 0;
+    clear(refs.errors);
+    errs.forEach(function (e) {
+      refs.errors.appendChild(el("li", null, e));
+    });
+  }
+
+  function renderAll() {
+    rebuildProviderColors(state.snapshot);
+    renderWindow();
+    renderQuotas();
+    renderBlocks();
+    renderChart();
+    renderErrors();
+    updateStatus();
+    // The floating window mirrors the same snapshot.
+    renderWidget();
+  }
+
+  // ---------------------------------------------------------------- status
+
+  function setStatus(stateName, text) {
+    refs.dot.className = "dot " + stateName;
+    refs.statusText.textContent = text;
+    widgetStatus.stateName = stateName;
+    widgetStatus.connected = stateName === "on";
+    // The floating window mirrors the connection state right away.
+    updateWidgetHeader();
+  }
+
+  function updateStatus() {
+    var snap = state.snapshot;
+    if (!snap || !snap.generated_at) {
+      refs.updatedText.textContent = "aguardando dados";
+      return;
+    }
+    var age = Date.now() - new Date(snap.generated_at).getTime();
+    if (!isFinite(age) || age < 0) age = 0;
+    refs.updatedText.textContent = "atualizado há " + Math.floor(age / 1000) + "s";
+  }
+
+  // ------------------------------------------------------------- websocket
+
+  function wsURL() {
+    var proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+    return proto + "//" + window.location.host + "/ws";
+  }
+
+  function connect() {
+    var sock;
+    try {
+      sock = new WebSocket(wsURL());
+    } catch (e) {
+      scheduleReconnect();
+      return;
+    }
+    state.socket = sock;
+
+    sock.addEventListener("open", function () {
+      state.backoff = 1000;
+      setStatus("on", "conectado");
+    });
+
+    sock.addEventListener("message", function (ev) {
+      var msg;
+      try {
+        msg = JSON.parse(ev.data);
+      } catch (e) {
+        return;
+      }
+      if (!msg || msg.type !== "snapshot" || !msg.data) return;
+      state.snapshot = msg.data;
+      renderAll();
+    });
+
+    sock.addEventListener("close", function () {
+      state.socket = null;
+      setStatus("off", "reconectando");
+      checkSessionThenReconnect();
+    });
+
+    sock.addEventListener("error", function () {
+      setStatus("off", "reconectando");
+      checkSessionThenReconnect();
+    });
+  }
+
+  function checkSessionThenReconnect() {
+    fetch("/api/me", { credentials: "same-origin" }).then(function (response) {
+      if (response.status === 401) {
+        window.location.href = "/login?next=/";
+        return false;
+      }
+      if (response.status === 403) {
+        window.location.href = "/password";
+        return false;
+      }
+      return true;
+    }).catch(function () {
+      return true;
+    }).then(function (shouldReconnect) {
+      if (shouldReconnect) scheduleReconnect();
+    });
+  }
+
+  function scheduleReconnect() {
+    var delay = state.backoff;
+    state.backoff = Math.min(state.backoff * 2, 30000);
+    if (state.timer) window.clearTimeout(state.timer);
+    state.timer = window.setTimeout(function () {
+      state.timer = null;
+      connect();
+    }, delay);
+  }
+
+  // ------------------------------------------------------------------ init
+
+  // watchChartSize keeps the chart in sync with the size of its container.
+  //
+  // The redraw is debounced with requestAnimationFrame, so a burst of resize
+  // events results in a single render using the last snapshot received.
+  function watchChartSize() {
+    if (!refs.chart || typeof window.ResizeObserver !== "function") return;
+
+    var frame = 0;
+    var observer = new window.ResizeObserver(function () {
+      if (frame) return;
+      frame = window.requestAnimationFrame(function () {
+        frame = 0;
+        if (state.snapshot) renderChart();
+      });
+    });
+    observer.observe(refs.chart);
+  }
+
+  state.windowName = loadWindowName();
+  buildTabs();
+  bindLogout();
+  bindInstall();
+  bindWidget();
+  registerServiceWorker();
+  renderWindow();
+  setStatus("wait", "conectando");
+  connect();
+  watchChartSize();
+
+  // Local clock: refreshes the countdowns, the progress bars and the age
+  // label. This is a clock, not a network poll.
+  window.setInterval(function () {
+    updateStatus();
+    updateQuotaCountdowns();
+    updateQuotaAges();
+    renderBlocks();
+    // The floating window has its own countdowns and age label.
+    updateWidgetCountdowns();
+    updateWidgetHeader();
+  }, 1000);
+})();
+</script>
+</body>
+</html>

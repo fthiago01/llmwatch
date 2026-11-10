@@ -1,0 +1,1308 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>llmwatch · admin</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#1e3a8a">
+<link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icons/icon-192.png">
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --panel: #ffffff;
+    --panel-alt: #f0f2f5;
+    --border: #dfe3e8;
+    --text: #1c2128;
+    --muted: #636c76;
+    --accent: #2f6feb;
+    --accent-soft: #dbe7ff;
+    --ok: #1a7f4b;
+    --warn: #b26a00;
+    --bad: #c0392b;
+    --grid: #eceff3;
+    --shadow: 0 1px 2px rgba(16, 22, 26, 0.06), 0 4px 12px rgba(16, 22, 26, 0.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e1116;
+      --panel: #161b22;
+      --panel-alt: #1c232c;
+      --border: #2b333d;
+      --text: #e6edf3;
+      --muted: #9198a1;
+      --accent: #58a6ff;
+      --accent-soft: #1d2b45;
+      --ok: #3fb950;
+      --warn: #d29922;
+      --bad: #f85149;
+      --grid: #262d36;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--muted);
+  }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, Cantarell, sans-serif;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  .wrap {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 16px 14px 40px;
+  }
+
+  header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 16px;
+    margin-bottom: 22px;
+  }
+
+  h1 {
+    font-size: 20px;
+    font-weight: 650;
+    margin: 0;
+    letter-spacing: -0.01em;
+  }
+
+  nav {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    margin-left: auto;
+  }
+
+  nav a {
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 5px 11px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+  }
+
+  nav a:hover {
+    color: var(--text);
+    background: var(--panel-alt);
+  }
+
+  nav a.current {
+    color: var(--accent);
+    background: var(--accent-soft);
+  }
+
+  nav a:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  nav .spacer { flex: 1 1 auto; }
+
+  section {
+    margin-bottom: 26px;
+  }
+
+  h2 {
+    font-size: 13px;
+    font-weight: 650;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--muted);
+    margin: 0 0 10px;
+  }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 13px 14px;
+    box-shadow: var(--shadow);
+  }
+
+  .card h3 {
+    margin: 0 0 10px;
+    font-size: 14px;
+    font-weight: 650;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .chip {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 999px;
+    padding: 2px 8px;
+  }
+
+  .badge {
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    background: var(--panel-alt);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 2px 8px;
+  }
+
+  .badge.kind-quota {
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-color: transparent;
+  }
+
+  .muted { color: var(--muted); }
+  .empty { color: var(--muted); font-size: 13px; }
+
+  .row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .row.end { justify-content: flex-end; }
+
+  button {
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text);
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 12px;
+    cursor: pointer;
+  }
+
+  button:hover:not(:disabled) {
+    background: var(--panel-alt);
+  }
+
+  button:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  button.primary {
+    color: #ffffff;
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+
+  button.primary:hover:not(:disabled) { filter: brightness(1.07); }
+
+  button.danger {
+    color: var(--bad);
+    border-color: var(--border);
+  }
+
+  button.danger:hover:not(:disabled) {
+    background: var(--panel-alt);
+    border-color: var(--bad);
+  }
+
+  button.ghost {
+    background: transparent;
+  }
+
+  /* ------------------------------------------------------------- providers */
+
+  .plist {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .pcard {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .pcard.disabled { opacity: 0.72; }
+
+  .phead {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 10px;
+  }
+
+  .phead .pname {
+    font-size: 14px;
+    font-weight: 650;
+    overflow-wrap: anywhere;
+  }
+
+  .phead .ptype {
+    font-size: 12px;
+    color: var(--muted);
+    overflow-wrap: anywhere;
+  }
+
+  .phead .spacer { flex: 1 1 auto; }
+
+  .kv {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 3px 12px;
+    font-size: 13px;
+  }
+  .kv dt { color: var(--muted); }
+  .kv dd {
+    margin: 0;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+  }
+  .kv dd.secret { letter-spacing: 0.02em; }
+
+  .pfoot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .pfoot .spacer { flex: 1 1 auto; }
+
+  .switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--muted);
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .switch input {
+    appearance: none;
+    -webkit-appearance: none;
+    margin: 0;
+    width: 34px;
+    height: 19px;
+    border-radius: 999px;
+    background: var(--grid);
+    border: 1px solid var(--border);
+    position: relative;
+    cursor: pointer;
+    transition: background 0.15s ease;
+    flex: none;
+  }
+
+  .switch input::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    background: var(--panel);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    transition: transform 0.15s ease;
+  }
+
+  .switch input:checked { background: var(--ok); border-color: var(--ok); }
+  .switch input:checked::after { transform: translateX(15px); }
+  .switch input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .testres {
+    font-size: 12.5px;
+    padding: 6px 9px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--panel-alt);
+    overflow-wrap: anywhere;
+  }
+
+  .testres.ok {
+    color: var(--ok);
+    border-color: var(--ok);
+    background: transparent;
+  }
+
+  .testres.bad {
+    color: var(--bad);
+    border-color: var(--bad);
+    background: transparent;
+  }
+
+  .testres.busy { color: var(--muted); }
+
+  .emptybox {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+    padding: 26px 18px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .emptybox p { margin: 0; color: var(--muted); font-size: 13px; max-width: 46ch; }
+
+  .emptybox[hidden] { display: none; }
+
+  /* --------------------------------------------------------------- credit */
+
+  .credit {
+    margin-top: 16px;
+    font-size: 12px;
+    color: var(--muted);
+    text-align: center;
+  }
+
+  .credit a { color: inherit; text-decoration: none; }
+
+  .credit a:hover { text-decoration: underline; }
+
+  /* ----------------------------------------------------------------- form */
+
+  .formcard {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+    padding: 14px;
+    margin-top: 12px;
+  }
+
+  .formcard > h3 {
+    margin: 0 0 12px;
+    font-size: 14px;
+    font-weight: 650;
+  }
+
+  .field { margin-bottom: 13px; }
+
+  .field > label {
+    display: block;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+
+  .req { color: var(--bad); }
+
+  .field input[type="text"],
+  .field input[type="password"],
+  .field select {
+    font: inherit;
+    font-size: 13px;
+    color: var(--text);
+    background: var(--panel-alt);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 7px 10px;
+    width: 100%;
+  }
+
+  .field input:focus,
+  .field select:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: -1px;
+    background: var(--panel);
+  }
+
+  .field select:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+
+  .field .help {
+    font-size: 11.5px;
+    color: var(--muted);
+    margin-top: 4px;
+    overflow-wrap: anywhere;
+  }
+
+  .typedesc {
+    font-size: 12.5px;
+    color: var(--muted);
+    background: var(--panel-alt);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin-top: -6px;
+    margin-bottom: 13px;
+  }
+
+  .formerr {
+    color: var(--bad);
+    font-size: 12.5px;
+    border: 1px solid var(--bad);
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin-bottom: 12px;
+    overflow-wrap: anywhere;
+  }
+
+  .formerr[hidden] { display: none; }
+
+  /* ---------------------------------------------------------- status line */
+
+  .sl {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .sl p { margin: 0; font-size: 13px; color: var(--muted); }
+
+  .sl pre {
+    margin: 0;
+    background: var(--panel-alt);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 11px 13px;
+    font: 12.5px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    color: var(--text);
+    overflow-x: auto;
+    white-space: pre;
+  }
+
+  /* --------------------------------------------------------------- toasts */
+
+  #toasts {
+    position: fixed;
+    right: 14px;
+    bottom: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 50;
+    max-width: min(340px, calc(100vw - 28px));
+  }
+
+  .toast {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 9px;
+    box-shadow: var(--shadow);
+    padding: 9px 12px;
+    font-size: 12.5px;
+    overflow-wrap: anywhere;
+  }
+
+  .toast.ok { border-left-color: var(--ok); color: var(--ok); }
+  .toast.bad { border-left-color: var(--bad); color: var(--bad); }
+
+  @media (max-width: 480px) {
+    .wrap { padding: 14px 12px 32px; }
+    h1 { font-size: 18px; }
+    nav { margin-left: 0; width: 100%; }
+    nav .spacer { display: none; }
+    .kv { grid-template-columns: 1fr; gap: 1px; }
+    .kv dd { text-align: left; }
+    .pfoot { gap: 6px; }
+    .pfoot button { flex: 1 1 auto; }
+    #toasts { left: 12px; right: 12px; max-width: none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>llmwatch</h1>
+    <nav>
+      <a href="/">Painel</a>
+      <a href="/admin" class="current" aria-current="page">Admin</a>
+      <a href="/password">Senha</a>
+      <span class="spacer"></span>
+      <a href="#" id="logoutLink">Sair</a>
+    </nav>
+  </header>
+
+  <section id="providersSection">
+    <h2>Providers</h2>
+    <div class="row end" style="margin-bottom: 12px;">
+      <button type="button" class="primary" id="addBtn">Adicionar provider</button>
+    </div>
+    <div id="formHost"></div>
+    <div class="plist" id="providerList"></div>
+    <div class="emptybox" id="providerEmpty" hidden>
+      <p>Nenhum provider registrado ainda. Adicione um para começar a coletar consumo de tokens e limites do plano.</p>
+      <button type="button" class="primary" id="addBtnEmpty">Adicionar provider</button>
+    </div>
+  </section>
+
+  <section id="statuslineSection">
+    <h2>Status line do Claude Code</h2>
+    <div class="card sl">
+      <p>
+        Para ver os limites de uso do Claude no painel, o Claude Code precisa gravar a
+        status line. Configure o arquivo <strong>~/.claude/settings.json</strong> com o
+        conteúdo abaixo e reinicie o Claude Code: a partir daí o comando
+        <code>llmwatch statusline</code> grava os limites num arquivo local, lido pelo
+        provider <strong>Claude (limites)</strong>.
+      </p>
+      <pre id="statuslineSnippet"></pre>
+      <div class="row">
+        <button type="button" id="copyBtn">Copiar</button>
+        <span class="muted" id="copyNote" aria-live="polite"></span>
+      </div>
+    </div>
+  </section>
+
+  <footer class="credit">desenvolvido por <a href="https://github.com/fthiago01" target="_blank" rel="noopener noreferrer">fthiago01</a></footer>
+
+</div>
+
+<div id="toasts" aria-live="polite"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---------------------------------------------------------------- helpers
+
+  function el(tag, cls, text) {
+    var node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (text !== undefined && text !== null) node.textContent = String(text);
+    return node;
+  }
+
+  function clear(node) {
+    while (node.firstChild) node.removeChild(node.firstChild);
+  }
+
+  // toast shows a discreet message in the corner of the screen.
+  function toast(message, kind) {
+    var node = el("div", "toast " + (kind || ""), message);
+    refs.toasts.appendChild(node);
+    window.setTimeout(function () {
+      if (node.parentNode) node.parentNode.removeChild(node);
+    }, 4200);
+  }
+
+  // ------------------------------------------------------------- app state
+
+  var state = {
+    types: [],
+    providers: [],
+    editing: null,   // null for a new provider, the provider being edited
+    formOpen: false
+  };
+
+  var refs = {
+    list: document.getElementById("providerList"),
+    empty: document.getElementById("providerEmpty"),
+    formHost: document.getElementById("formHost"),
+    addBtn: document.getElementById("addBtn"),
+    addBtnEmpty: document.getElementById("addBtnEmpty"),
+    statusline: document.getElementById("statuslineSnippet"),
+    copyBtn: document.getElementById("copyBtn"),
+    copyNote: document.getElementById("copyNote"),
+    toasts: document.getElementById("toasts"),
+    logoutLink: document.getElementById("logoutLink")
+  };
+
+  // --------------------------------------------------------------- network
+
+  // ApiError carries the message reported by the server.
+  function ApiError(message, status) {
+    this.name = "ApiError";
+    this.message = message || "erro inesperado";
+    this.status = status;
+  }
+  ApiError.prototype = Object.create(Error.prototype);
+
+  // request performs an API call and returns the decoded JSON answer.
+  //
+  // A 401 sends the browser to the login page and a 403 asking for a password
+  // change sends it to the password page.
+  function request(method, path, body) {
+    var options = {
+      method: method,
+      credentials: "same-origin",
+      headers: { "Accept": "application/json" }
+    };
+
+    if (body !== undefined) {
+      options.headers["Content-Type"] = "application/json";
+      options.body = JSON.stringify(body);
+    }
+
+    return window.fetch(path, options).then(function (response) {
+      if (response.status === 401) {
+        window.location.href = "/login?next=/admin";
+        throw new ApiError("sessão expirada", 401);
+      }
+
+      if (response.status === 403) {
+        return response.text().then(function (text) {
+          var message = "";
+          try {
+            var parsed = JSON.parse(text);
+            message = parsed && parsed.error ? String(parsed.error) : "";
+          } catch (e) {
+            message = "";
+          }
+          if (message === "password change required") {
+            window.location.href = "/password";
+            throw new ApiError("troca de senha obrigatória", 403);
+          }
+          throw new ApiError(message || "acesso negado", 403);
+        });
+      }
+
+      if (response.status === 204) return null;
+
+      return response.text().then(function (text) {
+        var payload = null;
+        if (text) {
+          try {
+            payload = JSON.parse(text);
+          } catch (e) {
+            payload = null;
+          }
+        }
+
+        if (!response.ok) {
+          var message = payload && payload.error ? String(payload.error) : "";
+          throw new ApiError(message || ("erro " + response.status), response.status);
+        }
+
+        return payload;
+      });
+    });
+  }
+
+  function loadTypes() {
+    return request("GET", "/api/admin/types").then(function (types) {
+      state.types = Array.isArray(types) ? types : [];
+    });
+  }
+
+  function loadProviders() {
+    return request("GET", "/api/admin/providers").then(function (providers) {
+      state.providers = Array.isArray(providers) ? providers : [];
+    });
+  }
+
+  // ------------------------------------------------------------- helpers
+
+  // typeByID returns the type of a provider, or null when it is unknown.
+  function typeByID(id) {
+    for (var i = 0; i < state.types.length; i++) {
+      if (state.types[i].id === id) return state.types[i];
+    }
+    return null;
+  }
+
+  // kindLabel returns the badge text of a kind.
+  function kindLabel(kind) {
+    return kind === "quota" ? "limites" : "consumo";
+  }
+
+  // kindGroup returns the optgroup text of a kind.
+  function kindGroup(kind) {
+    return kind === "quota" ? "Limites do plano" : "Consumo de tokens";
+  }
+
+  // fieldIsSecret reports whether a field holds a secret.
+  function fieldIsSecret(type, key) {
+    var fields = (type && type.fields) || [];
+    for (var i = 0; i < fields.length; i++) {
+      if (fields[i].key === key) return fields[i].kind === "secret";
+    }
+    return false;
+  }
+
+  // configValue renders a configuration value for the summary.
+  function configValue(type, key, value) {
+    if (value === undefined || value === null || value === "") return "—";
+    if (fieldIsSecret(type, key)) return String(value);
+    return String(value);
+  }
+
+  // formatDate renders a timestamp in the local format.
+  function formatDate(value) {
+    if (!value) return "";
+    var d = new Date(value);
+    if (isNaN(d.getTime())) return "";
+    return d.toLocaleString();
+  }
+
+  // ------------------------------------------------------------ rendering
+
+  function render() {
+    clear(refs.list);
+
+    var providers = state.providers;
+    refs.empty.hidden = providers.length > 0;
+
+    providers.forEach(function (provider) {
+      refs.list.appendChild(buildProviderCard(provider));
+    });
+  }
+
+  function buildProviderCard(provider) {
+    var type = typeByID(provider.type);
+
+    var card = el("div", "pcard" + (provider.enabled ? "" : " disabled"));
+
+    // Header: name, type label and the badge of the kind.
+    var head = el("div", "phead");
+    head.appendChild(el("span", "pname", provider.name || "sem nome"));
+
+    if (type) {
+      head.appendChild(el("span", "ptype", type.label || provider.type));
+      head.appendChild(el("span", "badge kind-" + (type.kind || "usage"),
+        kindLabel(type.kind)));
+    } else {
+      head.appendChild(el("span", "ptype", provider.type));
+      head.appendChild(el("span", "badge", "desconhecido"));
+    }
+
+    head.appendChild(el("span", "spacer"));
+
+    // The toggle sends the very same data back, with empty secrets.
+    var toggleLabel = el("label", "switch");
+    var toggle = document.createElement("input");
+    toggle.type = "checkbox";
+    toggle.checked = !!provider.enabled;
+    var toggleText = el("span", null, provider.enabled ? "Ativo" : "Inativo");
+    toggleLabel.appendChild(toggle);
+    toggleLabel.appendChild(toggleText);
+    toggleLabel.title = provider.enabled ? "Desativar" : "Ativar";
+
+    toggle.addEventListener("change", function () {
+      var wanted = toggle.checked;
+      toggleText.textContent = wanted ? "Ativo" : "Inativo";
+      toggleLabel.title = wanted ? "Desativar" : "Ativar";
+
+      toggleProvider(provider, wanted)
+        .then(function () {
+          toast(wanted ? "Provider ativado." : "Provider desativado.", "ok");
+          return loadProviders().then(render);
+        })
+        .catch(function (err) {
+          // The state was not accepted by the server: it goes back to the
+          // previous one.
+          toggle.checked = !wanted;
+          toggleText.textContent = toggle.checked ? "Ativo" : "Inativo";
+          toggleLabel.title = toggle.checked ? "Desativar" : "Ativar";
+          toast(err && err.message ? err.message : "erro ao alterar o estado", "bad");
+        });
+    });
+
+    head.appendChild(toggleLabel);
+
+    card.appendChild(head);
+
+    // Summary of the configuration.
+    var config = provider.config || {};
+    var keys = Object.keys(config);
+    if (keys.length) {
+      var dl = el("dl", "kv");
+      keys.sort().forEach(function (key) {
+        dl.appendChild(el("dt", null, key));
+        var secret = fieldIsSecret(type, key);
+        var dd = el("dd", secret ? "secret" : null, configValue(type, key, config[key]));
+        if (secret) dd.title = "segredo (mascarado)";
+        dl.appendChild(dd);
+      });
+      card.appendChild(dl);
+    }
+
+    // Actions.
+    var foot = el("div", "pfoot");
+
+    var testBtn = el("button", null, "Testar");
+    testBtn.type = "button";
+    testBtn.addEventListener("click", function () {
+      testProvider(provider, testBtn, card);
+    });
+    foot.appendChild(testBtn);
+
+    var editBtn = el("button", null, "Editar");
+    editBtn.type = "button";
+    editBtn.addEventListener("click", function () {
+      openForm(provider);
+    });
+    foot.appendChild(editBtn);
+
+    var delBtn = el("button", "danger", "Excluir");
+    delBtn.type = "button";
+    delBtn.addEventListener("click", function () {
+      deleteProvider(provider, delBtn);
+    });
+    foot.appendChild(delBtn);
+
+    foot.appendChild(el("span", "spacer"));
+
+    var updated = formatDate(provider.updated_at);
+    if (updated) {
+      var when = el("span", "muted", "atualizado em " + updated);
+      when.style.fontSize = "11.5px";
+      foot.appendChild(when);
+    }
+
+    card.appendChild(foot);
+
+    return card;
+  }
+
+  // -------------------------------------------------------------- actions
+
+  // testProvider runs the test of a provider and shows the result inline.
+  function testProvider(provider, button, card) {
+    var result = card.querySelector(".testres");
+    if (result) card.removeChild(result);
+
+    button.disabled = true;
+
+    var box = el("div", "testres busy", "testando…");
+    card.appendChild(box);
+
+    request("POST", "/api/admin/providers/" + encodeURIComponent(provider.id) + "/test")
+      .then(function (payload) {
+        var ok = !!(payload && payload.ok);
+        box.className = "testres " + (ok ? "ok" : "bad");
+        var message = payload && payload.message ? String(payload.message) : "";
+        box.textContent = ok ? "OK — " + message : "Falhou — " + message;
+      })
+      .catch(function (err) {
+        box.className = "testres bad";
+        box.textContent = "Falhou — " + (err && err.message ? err.message : "erro");
+      })
+      .then(function () {
+        button.disabled = false;
+      });
+  }
+
+  // deleteProvider removes a provider after the confirmation.
+  function deleteProvider(provider, button) {
+    if (!window.confirm("Excluir o provider \"" + provider.name + "\"?")) return;
+
+    button.disabled = true;
+    request("DELETE", "/api/admin/providers/" + encodeURIComponent(provider.id))
+      .then(function () {
+        toast("Provider excluído.", "ok");
+        return loadProviders().then(render);
+      })
+      .catch(function (err) {
+        button.disabled = false;
+        toast(err && err.message ? err.message : "erro ao excluir", "bad");
+      });
+  }
+
+  // toggleProvider flips the enabled flag of a provider.
+  function toggleProvider(provider, enabled) {
+    var config = {};
+    var source = provider.config || {};
+    Object.keys(source).forEach(function (key) {
+      // The secrets are sent empty, so the stored value is kept.
+      config[key] = fieldIsSecret(typeByID(provider.type), key) ? "" : source[key];
+    });
+
+    return request("PUT", "/api/admin/providers/" + encodeURIComponent(provider.id), {
+      type: provider.type,
+      name: provider.name,
+      enabled: enabled,
+      config: config
+    });
+  }
+
+  // ----------------------------------------------------------------- form
+
+  // openForm shows the form panel, either to add or to edit a provider.
+  function openForm(provider) {
+    state.editing = provider || null;
+    state.formOpen = true;
+    renderForm();
+  }
+
+  // closeForm hides the form panel.
+  function closeForm() {
+    state.editing = null;
+    state.formOpen = false;
+    clear(refs.formHost);
+  }
+
+  function renderForm() {
+    clear(refs.formHost);
+
+    var provider = state.editing;
+    var isEdit = !!provider;
+
+    var card = el("div", "formcard");
+    card.appendChild(el("h3", null, isEdit ? "Editar provider" : "Novo provider"));
+
+    var error = el("div", "formerr");
+    error.hidden = true;
+    card.appendChild(error);
+
+    var form = document.createElement("form");
+    form.noValidate = true;
+
+    // Type.
+    var typeField = el("div", "field");
+    var typeLabel = el("label", null, "Tipo");
+    typeLabel.setAttribute("for", "fType");
+    typeField.appendChild(typeLabel);
+
+    var select = document.createElement("select");
+    select.id = "fType";
+    select.name = "type";
+
+    var groups = {};
+    state.types.forEach(function (type) {
+      var kind = type.kind || "usage";
+      if (!groups[kind]) {
+        groups[kind] = [];
+      }
+      groups[kind].push(type);
+    });
+
+    Object.keys(groups).forEach(function (kind) {
+      var group = document.createElement("optgroup");
+      group.label = kindGroup(kind);
+      groups[kind].forEach(function (type) {
+        var option = document.createElement("option");
+        option.value = type.id;
+        option.textContent = type.label || type.id;
+        group.appendChild(option);
+      });
+      select.appendChild(group);
+    });
+
+    if (isEdit) {
+      // The type of a provider cannot be changed.
+      select.value = provider.type;
+      select.disabled = true;
+      select.setAttribute("aria-disabled", "true");
+    }
+
+    typeField.appendChild(select);
+    form.appendChild(typeField);
+
+    var desc = el("div", "typedesc");
+    form.appendChild(desc);
+
+    // Name.
+    var nameField = el("div", "field");
+    var nameLabel = el("label", null, "Nome");
+    nameLabel.setAttribute("for", "fName");
+    nameField.appendChild(nameLabel);
+
+    var nameInput = document.createElement("input");
+    nameInput.type = "text";
+    nameInput.id = "fName";
+    nameInput.name = "name";
+    nameInput.required = true;
+    nameInput.autocomplete = "off";
+    nameInput.placeholder = "Claude Code (logs)";
+    nameField.appendChild(nameInput);
+    form.appendChild(nameField);
+
+    // Enabled.
+    var enabledField = el("div", "field");
+    var enabledLabel = el("label", "switch");
+    var enabledInput = document.createElement("input");
+    enabledInput.type = "checkbox";
+    enabledInput.id = "fEnabled";
+    enabledInput.name = "enabled";
+    enabledInput.checked = isEdit ? !!provider.enabled : true;
+    enabledLabel.appendChild(enabledInput);
+    enabledLabel.appendChild(el("span", null, "Ativo"));
+    enabledField.appendChild(enabledLabel);
+    form.appendChild(enabledField);
+
+    // The generated fields of the chosen type.
+    var fieldsHost = el("div");
+    form.appendChild(fieldsHost);
+
+    // Buttons.
+    var buttons = el("div", "row end");
+    buttons.style.marginTop = "14px";
+
+    var cancelBtn = el("button", "ghost", "Cancelar");
+    cancelBtn.type = "button";
+    cancelBtn.addEventListener("click", function () {
+      closeForm();
+    });
+    buttons.appendChild(cancelBtn);
+
+    var saveBtn = el("button", "primary", isEdit ? "Salvar" : "Adicionar");
+    saveBtn.type = "submit";
+    buttons.appendChild(saveBtn);
+
+    form.appendChild(buttons);
+
+    // The description and the fields follow the selected type.
+    function applyType() {
+      var type = typeByID(select.value);
+      desc.textContent = type && type.description ? type.description : "";
+
+      clear(fieldsHost);
+      if (!type) return;
+
+      (type.fields || []).forEach(function (field) {
+        fieldsHost.appendChild(buildField(type, field, isEdit ? provider : null));
+      });
+    }
+
+    select.addEventListener("change", applyType);
+
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      save(provider, select, nameInput, enabledInput, error, saveBtn);
+    });
+
+    card.appendChild(form);
+    refs.formHost.appendChild(card);
+
+    applyType();
+
+    if (isEdit) nameInput.value = provider.name || "";
+
+    nameInput.focus();
+  }
+
+  // buildField builds one configuration field of the form.
+  function buildField(type, field, provider) {
+    var wrap = el("div", "field");
+
+    var label = el("label", null, field.label || field.key);
+    if (field.required) {
+      label.appendChild(el("span", "req", " *"));
+    }
+    label.setAttribute("for", "f_" + field.key);
+    wrap.appendChild(label);
+
+    var input = document.createElement("input");
+    input.id = "f_" + field.key;
+    input.name = field.key;
+
+    if (field.kind === "secret") {
+      input.type = "password";
+      input.autocomplete = "off";
+      input.placeholder = provider ? "deixe vazio para manter" : "";
+    } else {
+      input.type = "text";
+      input.autocomplete = "off";
+      input.placeholder = field.default ? String(field.default) : "";
+    }
+
+    if (field.required) input.required = true;
+
+    wrap.appendChild(input);
+
+    if (field.help) {
+      wrap.appendChild(el("div", "help", field.help));
+    }
+
+    return wrap;
+  }
+
+  // save sends the form to the API and reloads the list on success.
+  function save(provider, select, nameInput, enabledInput, error, button) {
+    var type = typeByID(select.value);
+    var isEdit = !!provider;
+
+    var name = nameInput.value.trim();
+    if (!name) {
+      showError(error, "o nome do provider é obrigatório");
+      return;
+    }
+    if (!type) {
+      showError(error, "escolha um tipo de provider");
+      return;
+    }
+
+    var config = {};
+    (type.fields || []).forEach(function (field) {
+      var input = document.getElementById("f_" + field.key);
+      if (!input) return;
+      config[field.key] = input.value.trim();
+    });
+
+    error.hidden = true;
+    button.disabled = true;
+
+    var payload = {
+      type: type.id,
+      name: name,
+      enabled: !!enabledInput.checked,
+      config: config
+    };
+
+    var call = isEdit
+      ? request("PUT", "/api/admin/providers/" + encodeURIComponent(provider.id), payload)
+      : request("POST", "/api/admin/providers", payload);
+
+    call
+      .then(function () {
+        toast(isEdit ? "Provider atualizado." : "Provider adicionado.", "ok");
+        closeForm();
+        return loadProviders().then(render);
+      })
+      .catch(function (err) {
+        showError(error, err && err.message ? err.message : "erro ao salvar");
+        button.disabled = false;
+      });
+  }
+
+  // showError displays the message of the server inside the form.
+  function showError(node, message) {
+    node.textContent = message;
+    node.hidden = false;
+  }
+
+  // ---------------------------------------------------------- status line
+
+  var STATUSLINE_SNIPPET =
+    '{\n  "statusLine": {\n    "type": "command",\n    "command": "llmwatch statusline"\n  }\n}';
+
+  function renderStatusLine() {
+    refs.statusline.textContent = STATUSLINE_SNIPPET;
+  }
+
+  // copyStatusLine copies the snippet to the clipboard.
+  //
+  // The clipboard API is not always available, so the text is selected as a
+  // fallback, leaving the copy to the user.
+  function copyStatusLine() {
+    var text = STATUSLINE_SNIPPET;
+    var note = refs.copyNote;
+
+    function done(ok) {
+      note.textContent = ok ? "copiado!" : "não foi possível copiar — selecione o texto acima";
+      window.setTimeout(function () {
+        note.textContent = "";
+      }, 2600);
+    }
+
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+      navigator.clipboard.writeText(text).then(function () {
+        done(true);
+      }, function () {
+        done(fallbackCopy(text));
+      });
+      return;
+    }
+
+    done(fallbackCopy(text));
+  }
+
+  // fallbackCopy selects the snippet, so the user can copy it manually.
+  function fallbackCopy(text) {
+    try {
+      var area = document.createElement("textarea");
+      area.value = text;
+      area.setAttribute("readonly", "");
+      area.style.position = "fixed";
+      area.style.top = "-1000px";
+      area.style.opacity = "0";
+      document.body.appendChild(area);
+      area.select();
+      area.setSelectionRange(0, text.length);
+      var ok = document.execCommand && document.execCommand("copy");
+      document.body.removeChild(area);
+      return !!ok;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // ---------------------------------------------------------------- logout
+
+  function logout() {
+    request("POST", "/api/logout")
+      .then(function () {
+        window.location.href = "/login";
+      })
+      .catch(function () {
+        // The session may already be gone: the login page is still the right
+        // place to land.
+        window.location.href = "/login";
+      });
+  }
+
+  // ------------------------------------------------------------------ init
+
+  refs.addBtn.addEventListener("click", function () {
+    openForm(null);
+  });
+
+  refs.addBtnEmpty.addEventListener("click", function () {
+    openForm(null);
+  });
+
+  refs.copyBtn.addEventListener("click", copyStatusLine);
+
+  refs.logoutLink.addEventListener("click", function (event) {
+    event.preventDefault();
+    logout();
+  });
+
+  renderStatusLine();
+
+  Promise.all([loadTypes(), loadProviders()])
+    .then(function () {
+      render();
+    })
+    .catch(function (err) {
+      toast(err && err.message ? err.message : "erro ao carregar", "bad");
+    });
+})();
+</script>
+</body>
+</html>

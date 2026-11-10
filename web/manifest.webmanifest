@@ -1,0 +1,48 @@
+{
+  "name": "llmwatch",
+  "short_name": "llmwatch",
+  "description": "Consumo e limites de LLMs em tempo real",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": [
+    "window-controls-overlay",
+    "standalone"
+  ],
+  "background_color": "#0f172a",
+  "theme_color": "#1e3a8a",
+  "lang": "pt-BR",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Admin",
+      "url": "/admin"
+    }
+  ]
+}

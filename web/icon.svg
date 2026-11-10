@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="llmwatch">
+  <defs>
+    <linearGradient id="background" x1="64" y1="48" x2="448" y2="464" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1e3a8a"/>
+      <stop offset="1" stop-color="#4f46e5"/>
+    </linearGradient>
+  </defs>
+  <rect x="16" y="16" width="480" height="480" rx="112" fill="url(#background)"/>
+  <g fill="#ffffff">
+    <rect x="122" y="282" width="54" height="104" rx="27"/>
+    <rect x="229" y="218" width="54" height="168" rx="27"/>
+    <rect x="336" y="142" width="54" height="244" rx="27"/>
+  </g>
+  <circle cx="363" cy="113" r="36" fill="#ffffff"/>
+  <circle cx="363" cy="113" r="18" fill="#4f46e5"/>
+</svg>

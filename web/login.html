@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>llmwatch · entrar</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#1e3a8a">
+<link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icons/icon-192.png">
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --panel: #ffffff;
+    --panel-alt: #f0f2f5;
+    --border: #dfe3e8;
+    --text: #1c2128;
+    --muted: #636c76;
+    --accent: #2f6feb;
+    --accent-soft: #dbe7ff;
+    --ok: #1a7f4b;
+    --warn: #b26a00;
+    --bad: #c0392b;
+    --grid: #eceff3;
+    --shadow: 0 1px 2px rgba(16, 22, 26, 0.06), 0 4px 12px rgba(16, 22, 26, 0.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e1116;
+      --panel: #161b22;
+      --panel-alt: #1c232c;
+      --border: #2b333d;
+      --text: #e6edf3;
+      --muted: #9198a1;
+      --accent: #58a6ff;
+      --accent-soft: #1d2b45;
+      --ok: #3fb950;
+      --warn: #d29922;
+      --bad: #f85149;
+      --grid: #262d36;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+  }
+  * { box-sizing: border-box; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  html, body { margin: 0; padding: 0; min-height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, Cantarell, sans-serif;
+    -webkit-text-size-adjust: 100%;
+    display: grid;
+    place-items: center;
+    padding: 20px 16px;
+  }
+  .card {
+    width: min(380px, 100%);
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 28px;
+    box-shadow: var(--shadow);
+  }
+  h1 { margin: 0 0 22px; font-size: 24px; font-weight: 650; letter-spacing: -0.02em; text-align: center; }
+  label { display: block; margin-bottom: 7px; font-weight: 600; }
+  input {
+    width: 100%;
+    font: inherit;
+    color: var(--text);
+    background: var(--panel-alt);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+  input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  button {
+    width: 100%;
+    margin-top: 16px;
+    font: inherit;
+    font-weight: 650;
+    color: #ffffff;
+    background: var(--accent);
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    padding: 10px 14px;
+    cursor: pointer;
+  }
+  button:hover:not(:disabled) { filter: brightness(0.96); }
+  button:disabled { opacity: 0.6; cursor: not-allowed; }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .error { min-height: 22px; margin-top: 12px; color: var(--bad); font-size: 13px; }
+  .credit {
+    margin-top: 16px;
+    font-size: 12px;
+    color: var(--muted);
+    text-align: center;
+  }
+  .credit a { color: inherit; text-decoration: none; }
+  .credit a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+  <main class="card">
+    <h1>llmwatch</h1>
+    <form id="login-form">
+      <label for="password">Senha</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" autofocus required>
+      <button id="submit" type="submit">Entrar</button>
+      <div id="error" class="error" role="alert" aria-live="polite"></div>
+    </form>
+    <footer class="credit">desenvolvido por <a href="https://github.com/fthiago01" target="_blank" rel="noopener noreferrer">fthiago01</a></footer>
+  </main>
+<script>
+(function () {
+  "use strict";
+  const form = document.getElementById("login-form");
+  const passwordInput = document.getElementById("password");
+  const button = document.getElementById("submit");
+  const errorBox = document.getElementById("error");
+
+  function safeNext() {
+    const next = new URLSearchParams(window.location.search).get("next");
+    return next && next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/\\") ? next : "/";
+  }
+
+  form.addEventListener("submit", async function (event) {
+    event.preventDefault();
+    errorBox.textContent = "";
+    button.disabled = true;
+    try {
+      const response = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: passwordInput.value })
+      });
+      if (response.status === 204) {
+        window.location.assign(safeNext());
+        return;
+      }
+      let message = "Não foi possível entrar.";
+      try {
+        const data = await response.json();
+        if (data && typeof data.error === "string" && data.error) message = data.error;
+      } catch (ignore) {}
+      errorBox.textContent = message;
+      button.disabled = false;
+    } catch (error) {
+      errorBox.textContent = "Não foi possível conectar ao servidor.";
+      button.disabled = false;
+    }
+  });
+}());
+</script>
+</body>
+</html>
