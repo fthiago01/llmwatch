@@ -150,11 +150,15 @@ que encontra na máquina (habilitados, com a configuração padrão):
 ### Claude Code (limites)
 
 Os limites do plano do Claude Code chegam pela *status line* do próprio Claude
-Code. Adicione ao `~/.claude/settings.json`:
+Code. **O instalador configura isso automaticamente** (`llmwatch setup-claude`),
+gravando no `~/.claude/settings.json` o caminho completo do binário — com backup
+em `settings.json.llmwatch-bak` e sem mexer nas outras configurações. Depois,
+reinicie o Claude Code.
 
-```json
-{"statusLine":{"type":"command","command":"llmwatch statusline"}}
-```
+- Já existe outra status line (ex.: ccusage)? Ela não é sobrescrita; para trocar,
+  rode `llmwatch setup-claude --force`.
+- Para desfazer: `llmwatch setup-claude --remove` (a desinstalação já faz isso).
+- Para o instalador não mexer no Claude Code: `LLMWATCH_NO_CLAUDE_SETUP=1`.
 
 O `llmwatch statusline` grava o JSON da status line no cache e imprime um
 resumo (`Claude · 5h 42% · 7d 17%`) na própria linha de status.

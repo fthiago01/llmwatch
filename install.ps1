@@ -7,6 +7,8 @@
     checksum SHA256, instala em %LOCALAPPDATA%\llmwatch\bin, adiciona o
     diretorio ao PATH do usuario e registra uma tarefa agendada que sobe o
     servidor em segundo plano a cada login, sem abrir janela.
+    Configura a status line do Claude Code sem substituir outra existente.
+    Use LLMWATCH_NO_CLAUDE_SETUP=1 para pular essa configuracao.
 
 .PARAMETER Uninstall
     Remove a instalacao: tarefa agendada, processo, binario e o diretorio
@@ -23,6 +25,12 @@
 
 .EXAMPLE
     & ([scriptblock]::Create((irm https://raw.githubusercontent.com/fthiago01/llmwatch/main/install.ps1))) -Uninstall
+
+.NOTES
+    $env:LLMWATCH_NO_CLAUDE_SETUP='1' desativa o setup automatico do Claude
+    Code. Para configurar depois, rode: llmwatch setup-claude.
+    A desinstalacao tenta remover a status line do llmwatch mesmo com essa
+    variavel definida. Falhas no setup nao interrompem a operacao.
 #>
 param(
     [switch]$Uninstall,
@@ -681,6 +689,27 @@ function Install-Llmwatch {
         throw "'llmwatch init' falhou com codigo $($init.ExitCode)."
     }
 
+    # Setup do Claude Code e opcional e nunca deve abortar a instalacao.
+    $claudeSetupMessage = 'Setup automatico pulado; rode: llmwatch setup-claude'
+    $claudeSetupFailed = $false
+    if ($env:LLMWATCH_NO_CLAUDE_SETUP -ne '1') {
+        try {
+            $claudeSetup = Invoke-NativeCommand -Command $exePath -Arguments @('setup-claude')
+            if ($claudeSetup.ExitCode -eq 0) {
+                $claudeSetupMessage = $claudeSetup.Output
+                Write-Info $claudeSetupMessage
+            } else {
+                $claudeSetupFailed = $true
+                $claudeSetupMessage = "Setup do Claude Code falhou com codigo $($claudeSetup.ExitCode): $($claudeSetup.Output). Rode: llmwatch setup-claude"
+                Write-Warn $claudeSetupMessage
+            }
+        } catch {
+            $claudeSetupFailed = $true
+            $claudeSetupMessage = "Nao foi possivel configurar o Claude Code: $($_.Exception.Message). Rode: llmwatch setup-claude"
+            Write-Warn $claudeSetupMessage
+        }
+    }
+
     # 7. Endereco
     if (-not [string]::IsNullOrWhiteSpace($env:LLMWATCH_ADDR)) {
         [Environment]::SetEnvironmentVariable('LLMWATCH_ADDR', $env:LLMWATCH_ADDR.Trim(), 'User')
@@ -740,8 +769,12 @@ function Install-Llmwatch {
 
     Write-Host ""
     Write-Host "  Status line do Claude Code" -ForegroundColor Cyan
-    Write-Host "  Adicione ao arquivo $env:USERPROFILE\.claude\settings.json:"
-    Write-Host '    {"statusLine":{"type":"command","command":"llmwatch statusline"}}'
+    if ($claudeSetupFailed) {
+        Write-Warn $claudeSetupMessage
+    } else {
+        Write-Info $claudeSetupMessage
+    }
+    Write-Host "  Reinicie o Claude Code para a status line valer."
     Write-Host ""
     Write-Host "  Abra um novo terminal para que o PATH atualizado tenha efeito." -ForegroundColor Yellow
     Write-Host ""
@@ -753,6 +786,21 @@ function Uninstall-Llmwatch {
     Write-Host ""
     Write-Host "llmwatch - desinstalador para Windows" -ForegroundColor White
     Write-Host "-----------------------------------" -ForegroundColor White
+
+    # Remover a status line antes da tarefa e do binario, sem bloquear falhas.
+    $exePath = Join-Path (Get-BinDir) 'llmwatch.exe'
+    if (Test-Path -LiteralPath $exePath -PathType Leaf) {
+        try {
+            $claudeRemove = Invoke-NativeCommand -Command $exePath -Arguments @('setup-claude', '--remove')
+            if ($claudeRemove.ExitCode -eq 0) {
+                Write-Info $claudeRemove.Output
+            } else {
+                Write-Warn "Nao foi possivel remover a status line do Claude Code (codigo $($claudeRemove.ExitCode)): $($claudeRemove.Output)"
+            }
+        } catch {
+            Write-Warn "Nao foi possivel remover a status line do Claude Code: $($_.Exception.Message)"
+        }
+    }
 
     # 1. Tarefa agendada
     Write-Step "Removendo a tarefa agendada"

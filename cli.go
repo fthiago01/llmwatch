@@ -50,6 +50,7 @@ Comandos:
   init            Prepara o banco de dados e a senha inicial
   reset-password  Gera uma nova senha e encerra as sessões
   statusline      Escreve o arquivo de status line do Claude Code
+  setup-claude    Configura a status line do Claude Code para o llmwatch
   version         Mostra a versão do programa
   help            Mostra esta ajuda
 
@@ -77,6 +78,8 @@ func run(ctx context.Context, args []string) int {
 		return cmdResetPassword(ctx)
 	case "statusline":
 		return cmdStatusline(ctx)
+	case "setup-claude":
+		return cmdSetupClaude(ctx)
 	case "version":
 		return cmdVersion(ctx)
 	case "help", "-h", "--help":
@@ -416,6 +419,15 @@ func saveStatusline(payload []byte) error {
 		return fmt.Errorf("renomear %s: %w", name, err)
 	}
 	return nil
+}
+
+// cmdSetupClaude configures the status line of the Claude Code.
+func cmdSetupClaude(ctx context.Context) int {
+	if err := runSetupClaude(os.Args[2:], os.Stdout); err != nil {
+		fmt.Fprintf(os.Stderr, "llmwatch: %v\n", err)
+		return 1
+	}
+	return 0
 }
 
 // cmdVersion prints the version of the program.

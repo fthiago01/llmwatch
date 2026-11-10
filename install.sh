@@ -13,6 +13,9 @@
 #   LLMWATCH_INSTALL_DIR  directory of the binary (default $HOME/.local/bin)
 #   LLMWATCH_ADDR         address of the server (default 127.0.0.1:18123)
 #   LLMWATCH_NO_SERVICE    when set to 1, the service is not installed
+#   LLMWATCH_NO_CLAUDE_SETUP
+#                        when set to 1, the Claude Code status line is not
+#                        configured automatically
 #   LLMWATCH_YES          when set to 1, the confirmation is assumed
 
 set -euo pipefail
@@ -370,6 +373,61 @@ remove_service() {
 }
 
 # ---------------------------------------------------------------------------
+# Claude Code status line.
+# ---------------------------------------------------------------------------
+
+# CLAUDE_SETUP_OUTPUT holds the output of the last "setup-claude" run.
+#
+# It is empty when the setup was not executed at all.
+CLAUDE_SETUP_OUTPUT=""
+
+# CLAUDE_SETUP_RAN tells whether the setup was attempted.
+CLAUDE_SETUP_RAN=0
+
+# setup_claude configures the status line of the Claude Code, pointing it to
+# the absolute path of the binary.
+#
+# A failure is only a warning: the installation itself must not be aborted
+# because of the status line. The output is kept in CLAUDE_SETUP_OUTPUT so the
+# summary can show it.
+setup_claude() {
+	local bin="$1"
+	local out
+
+	CLAUDE_SETUP_RAN=1
+
+	if out="$("$bin" setup-claude 2>&1)"; then
+		CLAUDE_SETUP_OUTPUT="$out"
+		return 0
+	fi
+
+	CLAUDE_SETUP_OUTPUT=""
+	warn "não foi possível configurar a status line do Claude Code."
+	info "rode '$bin setup-claude' depois de terminar a instalação."
+	return 0
+}
+
+# remove_claude_statusline removes the status line entry from the settings of
+# the Claude Code.
+#
+# It is called before the binary is removed, so the command is still
+# available. Failures are ignored with a warning.
+remove_claude_statusline() {
+	local bin="$1"
+	local out
+
+	if out="$("$bin" setup-claude --remove 2>&1)"; then
+		if [ -n "$out" ]; then
+			printf '%s\n' "$out"
+		fi
+		return 0
+	fi
+
+	warn "não foi possível remover a status line do Claude Code."
+	return 0
+}
+
+# ---------------------------------------------------------------------------
 # Uninstall.
 # ---------------------------------------------------------------------------
 
@@ -406,6 +464,9 @@ uninstall() {
 	remove_service
 
 	if [ -e "$bin" ]; then
+		step "removendo a status line do Claude Code…"
+		remove_claude_statusline "$bin"
+
 		rm -f "$bin"
 		ok "binário removido: $bin"
 	else
@@ -498,6 +559,13 @@ main() {
 		printf '%s\n' "$init_output"
 	fi
 
+	if [ "${LLMWATCH_NO_CLAUDE_SETUP:-}" != "1" ]; then
+		step "configurando a status line do Claude Code…"
+		setup_claude "$bin"
+	else
+		info "LLMWATCH_NO_CLAUDE_SETUP=1: a status line do Claude Code não será configurada."
+	fi
+
 	if [ "${LLMWATCH_NO_SERVICE:-}" != "1" ]; then
 		install_service "$bin"
 	fi
@@ -522,8 +590,12 @@ main() {
 	fi
 
 	printf '\n%s%s%s\n' "$C_BOLD" "status line do Claude Code:" "$C_RESET"
-	info "em ~/.claude/settings.json use:"
-	info '  {"statusLine":{"type":"command","command":"llmwatch statusline"}}'
+	if [ "$CLAUDE_SETUP_RAN" = "1" ] && [ -n "$CLAUDE_SETUP_OUTPUT" ]; then
+		printf '%s\n' "$CLAUDE_SETUP_OUTPUT"
+	else
+		info "rode: llmwatch setup-claude"
+	fi
+	info "reinicie o Claude Code para a status line valer."
 
 	if [ "$(uname -s)" = "Linux" ] && has_systemd; then
 		printf '\n%s%s%s\n' "$C_BOLD" "dica:" "$C_RESET"
