@@ -91,15 +91,73 @@ function Invoke-NativeCommand {
             Select-Object -First 1
         $applicationPath = $application.Source
     }
-    $ErrorActionPreference = 'Continue'
-    $PSNativeCommandUseErrorActionPreference = $false
-    $global:LASTEXITCODE = $null  # o PowerShell grava o codigo de saida na variavel global
-    $output = (& $applicationPath @Arguments 2>&1 | Out-String).Trim()
-    $code = $global:LASTEXITCODE
-    if ($null -eq $code) {
-        throw "Nao foi possivel executar '$Command'. $output"
+    # .NET Framework nao tem ArgumentList. Aplicar as regras de
+    # CommandLineToArgvW: duplicar barras antes de aspas e da aspa final.
+    $quotedArguments = New-Object System.Collections.Generic.List[string]
+    foreach ($argument in $Arguments) {
+        if (-not [string]::IsNullOrEmpty($argument) -and $argument -notmatch '[\s"]') {
+            [void]$quotedArguments.Add($argument)
+            continue
+        }
+        $quoted = New-Object System.Text.StringBuilder
+        [void]$quoted.Append('"')
+        $slashes = 0
+        foreach ($character in ([string]$argument).ToCharArray()) {
+            if ($character -eq '\') {
+                $slashes++
+                continue
+            }
+            if ($character -eq '"') {
+                [void]$quoted.Append(('\' * (2 * $slashes + 1)))
+            } else {
+                [void]$quoted.Append(('\' * $slashes))
+            }
+            [void]$quoted.Append($character)
+            $slashes = 0
+        }
+        [void]$quoted.Append(('\' * (2 * $slashes)))
+        [void]$quoted.Append('"')
+        [void]$quotedArguments.Add($quoted.ToString())
     }
-    return [pscustomobject]@{ Output = $output; ExitCode = $code }
+
+    $startInfo = New-Object System.Diagnostics.ProcessStartInfo
+    $startInfo.FileName = $applicationPath
+    $startInfo.Arguments = $quotedArguments -join ' '
+    $startInfo.UseShellExecute = $false
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+    $startInfo.CreateNoWindow = $true
+    $utf8 = New-Object System.Text.UTF8Encoding($false)
+    $startInfo.StandardOutputEncoding = $utf8
+    $startInfo.StandardErrorEncoding = $utf8
+
+    $process = New-Object System.Diagnostics.Process
+    try {
+        $process.StartInfo = $startInfo
+        try {
+            if (-not $process.Start()) {
+                throw 'O processo nao foi iniciado.'
+            }
+        } catch {
+            throw "Nao foi possivel executar '$Command': $($_.Exception.Message)"
+        }
+
+        # Drenar ambos os pipes antes de esperar evita deadlock por buffer cheio.
+        $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+        $stderrTask = $process.StandardError.ReadToEndAsync()
+        $process.WaitForExit()
+        $stdout = $stdoutTask.Result
+        $stderr = $stderrTask.Result
+        $parts = New-Object System.Collections.Generic.List[string]
+        if (-not [string]::IsNullOrEmpty($stdout)) { [void]$parts.Add($stdout) }
+        if (-not [string]::IsNullOrEmpty($stderr)) { [void]$parts.Add($stderr) }
+        return [pscustomobject]@{
+            Output = ($parts -join [Environment]::NewLine).Trim()
+            ExitCode = $process.ExitCode
+        }
+    } finally {
+        $process.Dispose()
+    }
 }
 
 # Get-Architecture maps the processor architecture to the name used by the
