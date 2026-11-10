@@ -2,14 +2,24 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1e3a8a">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/icons/icon-192.png">
+<script>
+(function () {
+  "use strict";
+  try {
+    var v = window.localStorage.getItem("llmwatch.theme");
+    if (v === "light" || v === "dark") document.documentElement.setAttribute("data-theme", v);
+  } catch (e) {}
+}());
+</script>
 <title>llmwatch</title>
 <style>
   :root {
+    color-scheme: light dark;
     --bg: #f6f7f9;
     --panel: #ffffff;
     --panel-alt: #f0f2f5;
@@ -25,8 +35,10 @@
     --shadow: 0 1px 2px rgba(16, 22, 26, 0.06), 0 4px 12px rgba(16, 22, 26, 0.05);
     --scroll: #dfe3e8;
   }
+  :root[data-theme="light"] { color-scheme: light; }
+  :root[data-theme="dark"] { color-scheme: dark; }
   @media (prefers-color-scheme: dark) {
-    :root {
+    :root:not([data-theme="light"]) {
       --bg: #0e1116;
       --panel: #161b22;
       --panel-alt: #1c232c;
@@ -42,6 +54,22 @@
       --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.3);
       --scroll: #303944;
     }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1116;
+    --panel: #161b22;
+    --panel-alt: #1c232c;
+    --border: #2b333d;
+    --text: #e6edf3;
+    --muted: #9198a1;
+    --accent: #58a6ff;
+    --accent-soft: #1d2b45;
+    --ok: #3fb950;
+    --warn: #d29922;
+    --bad: #f85149;
+    --grid: #262d36;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.3);
+    --scroll: #303944;
   }
 
   * {
@@ -69,12 +97,23 @@
     color: var(--text);
     font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, Cantarell, sans-serif;
     -webkit-text-size-adjust: 100%;
+    /* Never let a wide child push the page sideways. */
+    overflow-x: hidden;
+  }
+
+  /* Every flexible box is allowed to shrink below its content width, so the
+     grid and flex tracks never force the page wider than the screen. */
+  img, svg, video, canvas {
+    max-width: 100%;
   }
 
   .wrap {
     max-width: none;
     margin: 0;
     padding: 12px;
+    padding-left: max(12px, env(safe-area-inset-left));
+    padding-right: max(12px, env(safe-area-inset-right));
+    min-width: 0;
   }
 
   .leftcol {
@@ -90,6 +129,16 @@
     align-items: center;
     gap: 10px 14px;
     margin-bottom: 18px;
+    min-width: 0;
+  }
+
+  /* The brand and the live status share the first line of the header. */
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+    flex: 1 1 auto;
   }
 
   h1 {
@@ -97,6 +146,8 @@
     font-weight: 650;
     margin: 0;
     letter-spacing: -0.01em;
+    white-space: nowrap;
+    flex: none;
   }
 
   .status {
@@ -105,6 +156,12 @@
     gap: 7px;
     font-size: 12.5px;
     color: var(--muted);
+    min-width: 0;
+  }
+  .status > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .dot {
@@ -125,6 +182,8 @@
     align-items: center;
     gap: 12px;
     font-size: 12px;
+    min-width: 0;
+    flex: 0 0 auto;
   }
   .header-nav a,
   .header-nav button {
@@ -135,12 +194,45 @@
     border: 0;
     padding: 3px 2px;
     cursor: pointer;
+    white-space: nowrap;
+    flex: none;
   }
   .header-nav a:hover,
   .header-nav button:hover { color: var(--text); }
   .header-nav a:focus-visible,
   .header-nav button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .header-nav button[hidden] { display: none; }
+
+  .theme-toggle {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    min-height: 36px;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+  }
+  .theme-toggle:hover:not(:disabled) {
+    color: var(--text);
+    background: var(--panel-alt);
+    border-color: var(--border);
+  }
+  .theme-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .theme-toggle svg {
+    width: 16px;
+    height: 16px;
+    display: block;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.7;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .theme-toggle .theme-icon { display: none; }
+  :root:not([data-theme]) .theme-toggle .theme-icon-auto,
+  :root[data-theme="light"] .theme-toggle .theme-icon-light,
+  :root[data-theme="dark"] .theme-toggle .theme-icon-dark { display: block; }
 
   /* The widget button shows a small square that mimics the floating window. */
   .widgetIcon {
@@ -296,10 +388,6 @@
     display: grid;
     grid-template-columns: 1fr;
     gap: 12px;
-  }
-
-  @media (min-width: 701px) and (max-width: 1099px) {
-    .cards { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
   }
 
   .card {
@@ -523,16 +611,49 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
+    min-width: 0;
   }
 
-  .quota > h3 {
+  /* The first row of a quota card: the provider name on the left and the
+     "updated" age on the right. The name gives way first. */
+  .quota .qhead {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 4px 10px;
+    min-width: 0;
+  }
+
+  .quota .qhead > h3 {
     margin: 0;
     font-size: 14px;
     font-weight: 650;
     display: flex;
     align-items: center;
     gap: 8px;
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  /* The provider name never wraps in the middle of a word. */
+  .quota .qhead > h3 > .qtitle {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+  }
+
+  .quota .qhead > .qmeta {
+    flex: none;
+    white-space: nowrap;
+  }
+
+  /* The second row of a quota card: the type, the plan and the source. */
+  .quota .qchips {
+    display: flex;
     flex-wrap: wrap;
+    gap: 5px 6px;
+    min-width: 0;
   }
 
   .badge {
@@ -555,6 +676,17 @@
     padding: 2px 8px;
   }
 
+  /* A chip is never broken in the middle of a word: it is clipped with an
+     ellipsis when the card is too narrow for it. */
+  .quota .qchips > .badge,
+  .quota .qchips > .plan {
+    white-space: nowrap;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: inline-block;
+  }
+
   .qwin {
     display: flex;
     flex-direction: column;
@@ -571,6 +703,7 @@
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
+    min-width: 0;
   }
 
   .qwinhead {
@@ -624,12 +757,246 @@
     color: var(--muted);
   }
 
-  @media (max-width: 480px) {
-    .wrap { padding: 12px; }
+  /* --------------------------------------------------------------- layout */
+
+  /* The intermediate band: the page scrolls normally and the dashboard is
+     arranged in two columns, the limits on top and the panels side by side
+     below. It also covers a wide desktop window that is too short for the
+     fullscreen layout. */
+  @media (min-width: 700px) and (max-width: 1099px), (min-width: 1100px) and (max-height: 679px) {
+    /* The limits fill the width in a fluid grid. The track is capped so a
+       single card does not stretch across the whole screen. */
+    #quotas {
+      grid-template-columns: repeat(auto-fit, minmax(300px, 480px));
+    }
+
+    /* Below the limits: the 5h block and the chart on the left, the window
+       panel on the right. */
+    .wrap {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      grid-template-areas:
+        "header header"
+        "quotas quotas"
+        "left window"
+        "footer footer";
+      gap: 14px;
+      align-items: start;
+    }
+
+    header { grid-area: header; }
+    #quotaSection { grid-area: quotas; }
+    .leftcol { grid-area: left; }
+    #windowSection { grid-area: window; }
+    .credit { grid-area: footer; }
+
+    /* The panels become cards of their own. */
+    #quotaSection,
+    #blocksSection,
+    #chartSection,
+    #windowSection {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      box-shadow: var(--shadow);
+      padding: 12px;
+      margin: 0;
+      min-width: 0;
+    }
+
+    /* The window panel keeps the tabs, the totals and the table together. */
+    #windowSection {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    #windowSection .tabs {
+      align-self: flex-start;
+      flex: none;
+    }
+
+    /* The totals are laid out in three columns. */
+    .totals {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-auto-flow: row;
+      grid-auto-columns: auto;
+      flex: none;
+    }
+
+    /* The table scrolls inside its own container. */
+    .tablewrap {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /* The chart keeps a readable height. */
+    #chart { height: 240px; }
+    .chart { padding: 12px 10px 8px; }
+
+    /* The key/values of the 5h block use two columns. */
+    #blocks .kv {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-rows: auto auto auto auto;
+      grid-auto-flow: row;
+    }
+
+    /* The footer clears the home indicator. */
+    .credit {
+      padding-bottom: max(8px, env(safe-area-inset-bottom));
+    }
+  }
+
+  /* Below 700px the dashboard is a single column: the header collapses to
+     two lines and every section stacks in the reading order. */
+  @media (max-width: 699px) {
     h1 { font-size: 18px; }
     .big { font-size: 22px; }
+
+    /* Line 1: the brand, the status dot and the age of the snapshot.
+       Line 2: the navigation, which scrolls sideways when it does not fit. */
+    header {
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px 10px;
+      margin-bottom: 14px;
+    }
+
+    .brand {
+      flex: 1 1 100%;
+      min-width: 0;
+      gap: 10px;
+    }
+
+    .status {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+
+    .header-nav {
+      flex: 1 1 100%;
+      gap: 14px;
+      overflow-x: auto;
+      overflow-y: hidden;
+      scrollbar-width: thin;
+      -webkit-overflow-scrolling: touch;
+      padding-bottom: 2px;
+    }
+
+    /* The navigation never wraps its labels into two lines. */
+    .header-nav a,
+    .header-nav button {
+      white-space: nowrap;
+      flex: none;
+    }
+
+    /* One column: limits, window, 5h block and chart. */
     .cards { grid-template-columns: 1fr; }
-    .totals { grid-template-columns: repeat(2, 1fr); }
+
+    /* The reading order on a small screen is: the limits, the window
+       panel, the 5h block and the chart. */
+    .wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    /* The gap of the column replaces the margin of the sections. */
+    .wrap > section,
+    .wrap > .leftcol,
+    .wrap > header,
+    .wrap > footer.credit {
+      margin-bottom: 0;
+    }
+
+    .wrap > #quotaSection { order: 1; }
+    .wrap > #windowSection { order: 2; }
+    .wrap > .leftcol { order: 3; }
+    .wrap > footer.credit { order: 4; }
+
+    /* The 5h block comes before the chart inside the left column. */
+    .leftcol {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .leftcol > section {
+      margin-bottom: 0;
+    }
+
+    .leftcol > #blocksSection { order: 1; }
+    .leftcol > #chartSection { order: 2; }
+
+    /* The totals are readable in two columns. */
+    .totals {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    /* The chart keeps a fixed height on small screens. */
+    #chart { height: 220px; }
+    .chart { padding: 12px 10px 8px; }
+
+    /* The key/values of the 5h block use two columns. */
+    #blocks .kv {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-rows: auto auto auto auto;
+      grid-auto-flow: row;
+    }
+
+    /* The table scrolls inside its own container and the first column
+       stays pinned to the left edge. */
+    .tablewrap {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    th:first-child,
+    td:first-child {
+      position: sticky;
+      left: 0;
+      z-index: 1;
+      background: var(--panel);
+      box-shadow: 1px 0 0 var(--border);
+    }
+
+    th:first-child {
+      z-index: 2;
+      background: var(--panel-alt);
+    }
+
+    tbody tr:hover td:first-child { background: var(--panel-alt); }
+
+    /* The footer flows with the page and clears the home indicator. */
+    .credit {
+      padding-bottom: max(8px, env(safe-area-inset-bottom));
+      text-align: left;
+    }
+  }
+
+  /* The quota windows are side by side down to 340px and stack below. */
+  @media (max-width: 339px) {
+    .qwindows {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  /* The update toast takes the whole width of a small screen. */
+  @media (max-width: 499px) {
+    .updateToast {
+      left: 12px;
+      right: 12px;
+      bottom: max(12px, env(safe-area-inset-bottom));
+      width: auto;
+      max-width: none;
+    }
+
+    .updateToast .updateActions button,
+    .updateToast .updateActions .updateLink {
+      flex: 1 1 auto;
+      text-align: center;
+      white-space: nowrap;
+    }
   }
 
   /* ------------------------------------------------- fullscreen dashboard */
@@ -642,15 +1009,19 @@
     }
 
     .wrap {
-      width: 100vw;
+      width: 100%;
       height: 100vh;
+      height: 100dvh;
       max-width: none;
       margin: 0;
       padding: 14px 18px;
+      padding-left: max(18px, env(safe-area-inset-left));
+      padding-right: max(18px, env(safe-area-inset-right));
+      padding-bottom: max(14px, env(safe-area-inset-bottom));
       box-sizing: border-box;
       overflow: hidden;
       display: grid;
-      grid-template-columns: minmax(380px, 1fr) 2fr;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
       grid-template-rows: auto auto minmax(0, 1fr) auto;
       grid-template-areas:
         "header header"
@@ -671,11 +1042,17 @@
       box-shadow: var(--shadow);
       padding: 8px 14px;
       min-height: 0;
+      min-width: 0;
     }
 
     h1 {
       font-size: 17px;
       white-space: nowrap;
+    }
+
+    .brand {
+      flex: 0 1 auto;
+      min-width: 0;
     }
 
     .status {
@@ -741,10 +1118,13 @@
       letter-spacing: 0.06em;
     }
 
-    /* Quotas span the full width; each card shows its windows side by side. */
+    /* Quotas span the full width; each card shows its windows side by side.
+       The track is capped so a single card does not stretch across the
+       whole screen, and the cards are packed to the left. */
     #quotas {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(280px, 460px));
+      justify-content: start;
       gap: 10px;
       max-height: 36vh;
       overflow-y: auto;
@@ -761,20 +1141,15 @@
       container-type: inline-size;
     }
 
-    /* The provider name, the badges and the age share the first row. */
+    /* The provider name and the age share the first row; the chips take
+       the second one. */
     .quota .qhead {
-      display: flex;
-      align-items: baseline;
-      justify-content: space-between;
-      gap: 10px;
-      min-width: 0;
+      gap: 4px 10px;
     }
 
-    .quota > .qhead > h3,
     .quota .qhead > h3 {
       font-size: 13px;
       margin: 0;
-      flex-wrap: nowrap;
       min-width: 0;
     }
 
@@ -782,6 +1157,16 @@
       font-size: 10.5px;
       white-space: nowrap;
       flex: none;
+    }
+
+    .quota .qchips {
+      gap: 4px 5px;
+    }
+
+    .quota .qchips > .badge,
+    .quota .qchips > .plan {
+      font-size: 10px;
+      padding: 1px 7px;
     }
 
     /* The quota windows live in a two column grid inside each card. */
@@ -1102,12 +1487,14 @@
 <div class="wrap">
 
   <header>
-    <h1>llmwatch</h1>
-    <div class="status">
-      <span class="dot wait" id="statusDot"></span>
-      <span id="statusText">conectando</span>
-      <span aria-hidden="true">·</span>
-      <span id="updatedText">aguardando dados</span>
+    <div class="brand">
+      <h1>llmwatch</h1>
+      <div class="status">
+        <span class="dot wait" id="statusDot"></span>
+        <span id="statusText">conectando</span>
+        <span aria-hidden="true">·</span>
+        <span id="updatedText">aguardando dados</span>
+      </div>
     </div>
     <section id="errorsSection" hidden>
       <div class="errors">
@@ -1120,6 +1507,19 @@
         <span class="widgetIcon" aria-hidden="true"></span>Widget
       </button>
       <a href="/admin">Admin</a>
+      <button type="button" class="theme-toggle" aria-label="Tema: automático" title="Tema: automático">
+        <svg class="theme-icon theme-icon-auto" viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+          <circle cx="8" cy="8" r="6"></circle>
+          <path d="M8 2a6 6 0 0 1 0 12z" fill="currentColor" stroke="none"></path>
+        </svg>
+        <svg class="theme-icon theme-icon-light" viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+          <circle cx="8" cy="8" r="3"></circle>
+          <path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.1 3.1l1.1 1.1M11.8 11.8l1.1 1.1M12.9 3.1l-1.1 1.1M4.2 11.8l-1.1 1.1"></path>
+        </svg>
+        <svg class="theme-icon theme-icon-dark" viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+          <path d="M13.5 9.6A5.8 5.8 0 0 1 6.4 2.5a5.8 5.8 0 1 0 7.1 7.1z"></path>
+        </svg>
+      </button>
       <button id="logoutButton" type="button">Sair</button>
     </nav>
   </header>
@@ -1271,12 +1671,109 @@
     return pad(h) + ":" + pad(m) + ":" + pad(s);
   }
 
+  // ------------------------------------------------------------------ theme
+
+  var THEME_KEY = "llmwatch.theme";
+  var THEME_LABELS = { auto: "Tema: automático", light: "Tema: claro", dark: "Tema: escuro" };
+  var THEME_ORDER = ["auto", "light", "dark"];
+  var THEME_COLORS = { light: "#1e3a8a", dark: "#0f172a" };
+  var themeMode = "auto";
+
+  function readStoredTheme() {
+    try {
+      var value = window.localStorage.getItem(THEME_KEY);
+      return value === "light" || value === "dark" ? value : "auto";
+    } catch (e) {
+      return "auto";
+    }
+  }
+
+  function storeTheme(mode) {
+    try {
+      if (mode === "auto") window.localStorage.removeItem(THEME_KEY);
+      else window.localStorage.setItem(THEME_KEY, mode);
+    } catch (e) {
+      /* The page still works when storage is unavailable. */
+    }
+  }
+
+  function prefersDark() {
+    return !!(window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
+  }
+
+  function effectiveTheme() {
+    if (themeMode === "light" || themeMode === "dark") return themeMode;
+    return prefersDark() ? "dark" : "light";
+  }
+
+  function applyTheme(mode) {
+    themeMode = mode;
+    var root = document.documentElement;
+    if (mode === "auto") root.removeAttribute("data-theme");
+    else root.setAttribute("data-theme", mode);
+
+    var button = document.querySelector(".theme-toggle");
+    if (button) {
+      var label = THEME_LABELS[mode] || THEME_LABELS.auto;
+      button.setAttribute("aria-label", label);
+      button.setAttribute("title", label);
+    }
+
+    var meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) {
+      var color = mode === "light" ? THEME_COLORS.light
+        : mode === "dark" ? THEME_COLORS.dark
+        : (prefersDark() ? THEME_COLORS.dark : THEME_COLORS.light);
+      meta.setAttribute("content", color);
+    }
+
+    rebuildProviderColors(state.snapshot);
+    syncWidgetTheme();
+  }
+
+  function initTheme() {
+    var button = document.querySelector(".theme-toggle");
+    themeMode = readStoredTheme();
+    applyTheme(themeMode);
+
+    if (button) {
+      button.addEventListener("click", function () {
+        var index = THEME_ORDER.indexOf(themeMode);
+        var mode = THEME_ORDER[(index + 1) % THEME_ORDER.length];
+        storeTheme(mode);
+        applyTheme(mode);
+        if (state.snapshot) renderAll();
+      });
+    }
+
+    window.addEventListener("storage", function (event) {
+      if (event.key !== THEME_KEY) return;
+      applyTheme(event.newValue === "light" || event.newValue === "dark" ? event.newValue : "auto");
+      if (state.snapshot) renderAll();
+    });
+
+    if (window.matchMedia) {
+      var query = window.matchMedia("(prefers-color-scheme: dark)");
+      var onChange = function () {
+        if (themeMode === "auto") {
+          applyTheme("auto");
+          if (state.snapshot) renderAll();
+        }
+      };
+      if (typeof query.addEventListener === "function") query.addEventListener("change", onChange);
+      else if (typeof query.addListener === "function") query.addListener(onChange);
+    }
+  }
+
   // Provider colors are assigned by alphabetical order in the current
   // snapshot, so similar provider names always receive distinct colors.
-  var PALETTE = [
-    "#1464d2", "#d43d51", "#16845b", "#8a3ffc",
-    "#b85c00", "#00869a", "#8f3bb7", "#7a6d00",
-    "#d12f82", "#4b5f16"
+  var LIGHT_PALETTE = [
+    "#2a78d6", "#eb6834", "#1baf7a", "#eda100",
+    "#e87ba4", "#008300", "#6250d6", "#e34948"
+  ];
+  var DARK_PALETTE = [
+    "#3987e5", "#d95926", "#199e70", "#c98500",
+    "#d55181", "#008300", "#9085e9", "#e66767"
   ];
 
   var providerColors = {};
@@ -1314,10 +1811,9 @@
 
   function rebuildProviderColors(snapshot) {
     providerColors = {};
+    var palette = effectiveTheme() === "dark" ? DARK_PALETTE : LIGHT_PALETTE;
     collectSnapshotProviders(snapshot).forEach(function (provider, index) {
-      providerColors[provider] = index < PALETTE.length
-        ? PALETTE[index]
-        : "hsl(" + ((index * 137.508) % 360).toFixed(3) + ", 72%, 42%)";
+      providerColors[provider] = index < palette.length ? palette[index] : "var(--muted)";
     });
   }
 
@@ -1326,7 +1822,7 @@
     if (!providerColors[provider]) {
       rebuildProviderColors(state.snapshot);
     }
-    return providerColors[provider] || PALETTE[0];
+    return providerColors[provider] || (effectiveTheme() === "dark" ? DARK_PALETTE[0] : LIGHT_PALETTE[0]);
   }
 
   // ------------------------------------------------------------- app state
@@ -1461,13 +1957,18 @@
   //
   // It is injected as text, so no markup is ever interpreted as HTML.
   var WIDGET_CSS = [
-    ":root{--bg:#f6f7f9;--panel:#ffffff;--panel-alt:#f0f2f5;--border:#dfe3e8;",
+    ":root{color-scheme:light dark;--bg:#f6f7f9;--panel:#ffffff;--panel-alt:#f0f2f5;--border:#dfe3e8;",
     "--text:#1c2128;--muted:#636c76;--accent:#2f6feb;--accent-soft:#dbe7ff;",
     "--ok:#1a7f4b;--warn:#b26a00;--bad:#c0392b;--grid:#eceff3}",
-    "@media (prefers-color-scheme: dark){:root{--bg:#0e1116;--panel:#161b22;",
+    ":root[data-theme=light]{color-scheme:light}",
+    ":root[data-theme=dark]{color-scheme:dark}",
+    "@media (prefers-color-scheme: dark){:root:not([data-theme=light]){--bg:#0e1116;--panel:#161b22;",
     "--panel-alt:#1c232c;--border:#2b333d;--text:#e6edf3;--muted:#9198a1;",
     "--accent:#58a6ff;--accent-soft:#1d2b45;--ok:#3fb950;--warn:#d29922;",
     "--bad:#f85149;--grid:#262d36}}",
+    ":root[data-theme=dark]{--bg:#0e1116;--panel:#161b22;--panel-alt:#1c232c;--border:#2b333d;",
+    "--text:#e6edf3;--muted:#9198a1;--accent:#58a6ff;--accent-soft:#1d2b45;--ok:#3fb950;",
+    "--warn:#d29922;--bad:#f85149;--grid:#262d36}",
     "*{box-sizing:border-box}",
     "html,body{margin:0;padding:0;height:100%}",
     "body{background:var(--bg);color:var(--text);",
@@ -1497,6 +1998,11 @@
     ".wreset{overflow:hidden;text-overflow:ellipsis}",
     ".wwarn{color:var(--warn);font-size:10.5px;overflow-wrap:anywhere}",
     ".wempty{color:var(--muted);font-size:11px}",
+    ".wspark{position:relative;height:28px;margin-top:5px}",
+    ".wspark svg{display:block;width:100%;height:28px;overflow:visible}",
+    ".wspark .wspark-line{vector-effect:non-scaling-stroke}",
+    ".wspark-label{color:var(--muted);font-size:10px;text-align:right;margin-top:1px}",
+    ".wspark-empty{color:var(--muted);font-size:10px;height:28px;display:flex;align-items:center}",
     "@media (max-width: 260px){.wreset{display:none}.wfoot{justify-content:flex-end}}"
   ].join("");
 
@@ -1520,7 +2026,7 @@
     if (saved) return saved;
 
     var quotas = (state.snapshot && state.snapshot.quotas) || [];
-    var height = 56 + 112 * quotas.length;
+    var height = 56 + 152 * quotas.length;
     if (height > 560) height = 560;
     return { width: 340, height: height };
   }
@@ -1601,6 +2107,8 @@
       wrap.appendChild(buildWidgetWindow(doc, w));
     });
 
+    wrap.appendChild(buildWidgetSparkline(doc, q.provider));
+
     if (q.error) {
       var warn = doc.createElement("div");
       warn.className = "wwarn";
@@ -1666,6 +2174,127 @@
     return win;
   }
 
+  // buildWidgetSparkline renders the 24-hour token series for a provider.
+  function buildWidgetSparkline(doc, provider) {
+    var wrap = doc.createElement("div");
+    wrap.className = "wspark";
+
+    var buckets = (state.snapshot && state.snapshot.hourly) || [];
+    var values = buckets.map(function (bucket) {
+      var map = (bucket && bucket.by_provider) || {};
+      return Number(map[provider]) || 0;
+    });
+    var total = values.reduce(function (sum, value) { return sum + value; }, 0);
+    var max = values.reduce(function (peak, value) { return value > peak ? value : peak; }, 0);
+
+    if (max <= 0) {
+      var empty = doc.createElement("div");
+      empty.className = "wspark-empty";
+      empty.textContent = "sem consumo local nas últimas 24h";
+      wrap.appendChild(empty);
+      var emptyLabel = doc.createElement("div");
+      emptyLabel.className = "wspark-label";
+      emptyLabel.textContent = "24h: " + formatCompact(total);
+      wrap.appendChild(emptyLabel);
+      return wrap;
+    }
+
+    var width = 320;
+    var height = 28;
+    var color = colorFor(provider);
+    var svg = doc.createElementNS(SVG_NS, "svg");
+    svg.setAttribute("viewBox", "0 0 " + width + " " + height);
+    svg.setAttribute("width", "100%");
+    svg.setAttribute("height", "28");
+    svg.setAttribute("preserveAspectRatio", "none");
+    svg.setAttribute("role", "img");
+
+    var peakIndex = 0;
+    values.forEach(function (value, index) {
+      if (value > values[peakIndex]) peakIndex = index;
+    });
+    var peakHour = buckets[peakIndex] ? formatHour(buckets[peakIndex].hour) : "--:--";
+    svg.setAttribute("aria-label", "Tokens por hora nas últimas 24h: total " + formatCompact(total) +
+      ", pico " + formatCompact(max) + " às " + peakHour);
+
+    var points = values.map(function (value, index) {
+      var x = values.length > 1 ? (index / (values.length - 1)) * width : width;
+      var y = height - (value / max) * (height - 4) - 2;
+      return { x: x, y: y };
+    });
+    var linePath = points.map(function (point, index) {
+      return (index ? "L" : "M") + point.x.toFixed(2) + " " + point.y.toFixed(2);
+    }).join(" ");
+    var areaPath = linePath + " L" + width + " " + height + " L0 " + height + " Z";
+
+    var area = doc.createElementNS(SVG_NS, "path");
+    area.setAttribute("d", areaPath);
+    area.setAttribute("fill", color);
+    area.setAttribute("fill-opacity", "0.15");
+    svg.appendChild(area);
+
+    var baseline = doc.createElementNS(SVG_NS, "line");
+    baseline.setAttribute("x1", "0");
+    baseline.setAttribute("x2", String(width));
+    baseline.setAttribute("y1", String(height - 0.5));
+    baseline.setAttribute("y2", String(height - 0.5));
+    baseline.setAttribute("stroke", "var(--border)");
+    baseline.setAttribute("stroke-width", "1");
+    svg.appendChild(baseline);
+
+    var line = doc.createElementNS(SVG_NS, "path");
+    line.setAttribute("d", linePath);
+    line.setAttribute("fill", "none");
+    line.setAttribute("stroke", color);
+    line.setAttribute("stroke-width", "2");
+    line.setAttribute("stroke-linejoin", "round");
+    line.setAttribute("stroke-linecap", "round");
+    line.setAttribute("vector-effect", "non-scaling-stroke");
+    svg.appendChild(line);
+
+    var end = points[points.length - 1];
+    var ring = doc.createElementNS(SVG_NS, "circle");
+    ring.setAttribute("cx", end.x.toFixed(2));
+    ring.setAttribute("cy", end.y.toFixed(2));
+    ring.setAttribute("r", "5.5");
+    ring.setAttribute("fill", "var(--panel)");
+    svg.appendChild(ring);
+    var dot = doc.createElementNS(SVG_NS, "circle");
+    dot.setAttribute("cx", end.x.toFixed(2));
+    dot.setAttribute("cy", end.y.toFixed(2));
+    dot.setAttribute("r", "3.5");
+    dot.setAttribute("fill", color);
+    svg.appendChild(dot);
+
+    buckets.forEach(function (bucket, index) {
+      var hover = doc.createElementNS(SVG_NS, "rect");
+      hover.setAttribute("x", (index * width / values.length).toFixed(2));
+      hover.setAttribute("y", "0");
+      hover.setAttribute("width", (width / values.length).toFixed(2));
+      hover.setAttribute("height", String(height));
+      hover.setAttribute("fill", "transparent");
+      var title = doc.createElementNS(SVG_NS, "title");
+      title.textContent = formatHour(bucket.hour) + " · " + formatCompact(values[index]) + " tokens";
+      hover.appendChild(title);
+      svg.appendChild(hover);
+    });
+
+    wrap.appendChild(svg);
+    var label = doc.createElement("div");
+    label.className = "wspark-label";
+    label.textContent = "24h: " + formatCompact(total);
+    wrap.appendChild(label);
+    return wrap;
+  }
+
+  // syncWidgetTheme copies the selected theme to the floating window.
+  function syncWidgetTheme() {
+    if (!pipWindow) return;
+    var root = pipWindow.document.documentElement;
+    if (themeMode === "auto") root.removeAttribute("data-theme");
+    else root.setAttribute("data-theme", themeMode);
+  }
+
   // updateWidgetCountdown refreshes a single countdown of the widget.
   function updateWidgetCountdown(entry) {
     var left = entry.at - Date.now();
@@ -1722,6 +2351,7 @@
 
       var doc = pip.document;
       doc.title = "llmwatch";
+      syncWidgetTheme();
 
       var style = doc.createElement("style");
       style.textContent = WIDGET_CSS;
@@ -1972,28 +2602,31 @@
   function buildQuotaCard(q) {
     var card = el("div", "quota");
 
+    // The first row: the provider name and the "updated" age.
     var head = el("h3");
     var swatch = el("span", "prov");
     swatch.style.background = colorFor(q.provider);
     head.appendChild(swatch);
 
     var configuredName = String(q.name || "").trim();
-    if (configuredName) {
-      head.appendChild(document.createTextNode(configuredName));
-      head.appendChild(el("span", "badge", providerLabel(q.provider)));
-    } else {
-      head.appendChild(document.createTextNode(providerLabel(q.provider)));
-    }
-    if (q.plan) {
-      head.appendChild(el("span", "plan", q.plan));
-    }
-    if (q.source) {
-      head.appendChild(el("span", "badge", q.source));
-    }
+    var title = el("span", "qtitle");
+    title.textContent = configuredName || providerLabel(q.provider);
+    head.appendChild(title);
 
-    // The provider name and the "updated" age share the first row.
     var qhead = el("div", "qhead");
     qhead.appendChild(head);
+
+    // The second row: the type of the limit, the plan and the source.
+    var chips = el("div", "qchips");
+    if (configuredName) {
+      chips.appendChild(el("span", "badge", providerLabel(q.provider)));
+    }
+    if (q.plan) {
+      chips.appendChild(el("span", "plan", q.plan));
+    }
+    if (q.source) {
+      chips.appendChild(el("span", "badge", q.source));
+    }
 
     var updated = parseQuotaTime(q.updated_at);
     if (updated) {
@@ -2002,6 +2635,11 @@
       quotaAges.push({ node: age, at: updated.getTime() });
     }
     card.appendChild(qhead);
+
+    // The chips row is only rendered when there is something to show.
+    if (chips.childNodes.length) {
+      card.appendChild(chips);
+    }
 
     var windows = q.windows || [];
 
@@ -2741,6 +3379,7 @@
   }
 
   state.windowName = loadWindowName();
+  initTheme();
   buildTabs();
   bindLogout();
   bindInstall();

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -62,6 +63,9 @@ type serviceEnv struct {
 	SelfPID int
 	// Addr is the address the server listens on.
 	Addr string
+	// CacheDir is the cache directory of the user, where the status line
+	// of the Claude Code is written.
+	CacheDir string
 	// Run runs an external command and returns its combined output.
 	Run func(name string, args ...string) (output string, err error)
 	// Exists reports whether a path exists.
@@ -84,12 +88,18 @@ func defaultServiceEnv() serviceEnv {
 		addr = defaultAddr
 	}
 
+	cacheDir, err := os.UserCacheDir()
+	if err != nil {
+		cacheDir = ""
+	}
+
 	return serviceEnv{
-		GOOS:    runtime.GOOS,
-		Home:    home,
-		UID:     os.Getuid(),
-		SelfPID: os.Getpid(),
-		Addr:    addr,
+		GOOS:     runtime.GOOS,
+		Home:     home,
+		UID:      os.Getuid(),
+		SelfPID:  os.Getpid(),
+		Addr:     addr,
+		CacheDir: cacheDir,
 		Run: func(name string, args ...string) (string, error) {
 			out, err := exec.Command(name, args...).CombinedOutput()
 			return string(out), err
@@ -228,6 +238,7 @@ func serviceStatusLinux(e serviceEnv, out io.Writer) error {
 	if !serviceInstalledLinux(e) {
 		fmt.Fprintln(out, "serviço: não instalado")
 		printPanelStatus(e, out)
+		printClaudeStatusline(e, out)
 		printVersion(out)
 		return nil
 	}
@@ -240,6 +251,7 @@ func serviceStatusLinux(e serviceEnv, out io.Writer) error {
 	}
 	fmt.Fprintf(out, "serviço: instalado (%s)\n", state)
 	printPanelStatus(e, out)
+	printClaudeStatusline(e, out)
 	printVersion(out)
 	return nil
 }
@@ -330,6 +342,7 @@ func serviceStatusDarwin(e serviceEnv, out io.Writer) error {
 	if !serviceInstalledDarwin(e) {
 		fmt.Fprintln(out, "serviço: não instalado")
 		printPanelStatus(e, out)
+		printClaudeStatusline(e, out)
 		printVersion(out)
 		return nil
 	}
@@ -340,6 +353,7 @@ func serviceStatusDarwin(e serviceEnv, out io.Writer) error {
 		fmt.Fprintln(out, "serviço: instalado (parado)")
 	}
 	printPanelStatus(e, out)
+	printClaudeStatusline(e, out)
 	printVersion(out)
 	return nil
 }
@@ -424,6 +438,7 @@ func serviceStatusWindows(e serviceEnv, out io.Writer) error {
 	if !serviceTaskInstalledWindows(e) {
 		fmt.Fprintln(out, "serviço: não instalado")
 		printPanelStatus(e, out)
+		printClaudeStatusline(e, out)
 		printVersion(out)
 		return nil
 	}
@@ -432,6 +447,7 @@ func serviceStatusWindows(e serviceEnv, out io.Writer) error {
 	// state says nothing about the running panel.
 	fmt.Fprintln(out, "serviço: instalado")
 	printPanelStatus(e, out)
+	printClaudeStatusline(e, out)
 	printVersion(out)
 	return nil
 }
@@ -553,6 +569,86 @@ func printPanelStatus(e serviceEnv, out io.Writer) {
 		return
 	}
 	fmt.Fprintf(out, "painel: não responde\n")
+}
+
+// claudeStatuslinePath returns the path of the file written by the status
+// line of the Claude Code.
+//
+// An empty path is returned when the cache directory of the user is unknown.
+func claudeStatuslinePath(e serviceEnv) string {
+	if e.CacheDir == "" {
+		return ""
+	}
+	return filepath.Join(e.CacheDir, "llmwatch", "claude-statusline.json")
+}
+
+// printClaudeStatusline prints when the status line of the Claude Code was
+// called for the last time.
+//
+// The file is written by the Claude Code on every call of the status line, so
+// its age tells whether the Claude Code is really using the llmwatch. The
+// keys of the rate limits are shown, so the user sees that the limits are
+// being read.
+func printClaudeStatusline(e serviceEnv, out io.Writer) {
+	path := claudeStatuslinePath(e)
+	if path == "" {
+		fmt.Fprintln(out, "status line do Claude: desconhecida")
+		return
+	}
+
+	info, err := os.Stat(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			fmt.Fprintln(out, "status line do Claude: nunca chamada")
+			return
+		}
+		fmt.Fprintln(out, "status line do Claude: arquivo inválido")
+		return
+	}
+
+	keys, err := claudeStatuslineRateLimits(path)
+	if err != nil {
+		fmt.Fprintln(out, "status line do Claude: arquivo inválido")
+		return
+	}
+
+	fmt.Fprintf(out, "status line do Claude: última chamada há %s (%s)\n",
+		humanDuration(time.Since(info.ModTime())), keys)
+}
+
+// claudeStatuslineRateLimits returns the keys of the rate limits of the
+// status line of the Claude Code.
+//
+// An error is returned when the file does not hold a valid JSON document.
+func claudeStatuslineRateLimits(path string) (string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("ler %s: %w", path, err)
+	}
+
+	var document struct {
+		RateLimits json.RawMessage `json:"rate_limits"`
+	}
+	if err := json.Unmarshal(data, &document); err != nil {
+		return "", fmt.Errorf("json inválido em %s: %w", path, err)
+	}
+
+	keys := rateLimitKeys(document.RateLimits)
+	if len(keys) == 0 {
+		return "sem rate_limits", nil
+	}
+	return strings.Join(keys, ", "), nil
+}
+
+// humanDuration returns a duration in a short and readable form.
+//
+// The value is rounded to the second, because the age of the file is only
+// interesting in a rough way.
+func humanDuration(d time.Duration) string {
+	if d < 0 {
+		d = 0
+	}
+	return d.Round(time.Second).String()
 }
 
 // printVersion prints the version of the program.

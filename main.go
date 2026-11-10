@@ -56,8 +56,9 @@ const sessionPurgeInterval = time.Hour
 // updateInterval is how often the release API is queried.
 const updateInterval = 6 * time.Hour
 
-// updateInitialDelay is how long the program waits before the first check.
-const updateInitialDelay = 20 * time.Second
+// updateInitialDelay is how long the program waits before the first check:
+// zero, so every start or restart checks for a new release right away.
+const updateInitialDelay = 0
 
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lmsgprefix)

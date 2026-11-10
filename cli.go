@@ -9,6 +9,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
+	"strings"
+	"time"
 
 	"llmwatch/internal/auth"
 	"llmwatch/internal/catalog"
@@ -38,6 +41,19 @@ const (
 // maxStatuslineInput bounds the size of the status line payload read from the
 // standard input.
 const maxStatuslineInput = 1 << 20
+
+// Names and limits of the log of the status line.
+const (
+	// statuslineLogName is the name of the file holding the log of the
+	// calls of the status line.
+	statuslineLogName = "statusline.log"
+	// statuslineLogMaxSize is the size that makes the log be trimmed
+	// before a new line is appended.
+	statuslineLogMaxSize = 256 << 10
+	// statuslineLogKeepLines is the number of lines kept when the log is
+	// trimmed.
+	statuslineLogKeepLines = 200
+)
 
 // usage is the help text of the program, in Brazilian Portuguese.
 const usage = `llmwatch — painel de uso de LLMs locais
@@ -326,7 +342,9 @@ func cmdResetPassword(ctx context.Context) int {
 // standard input, saves it in the cache directory and prints a summary.
 //
 // It never fails: a broken status line must not break the Claude Code, so
-// any error is reported by printing the plain program name.
+// any error is reported by printing the plain program name. Every call is
+// also registered in the log of the status line, which is best effort: a
+// failure to write the log changes neither the output nor the exit code.
 func cmdStatusline(ctx context.Context) int {
 	fallback := func() int {
 		fmt.Println("llmwatch")
@@ -335,20 +353,38 @@ func cmdStatusline(ctx context.Context) int {
 
 	payload, err := io.ReadAll(io.LimitReader(os.Stdin, maxStatuslineInput))
 	if err != nil {
+		logStatuslineCall(payload, err)
 		return fallback()
 	}
 
 	var status statuslineInput
 	if err := json.Unmarshal(payload, &status); err != nil {
+		logStatuslineCall(payload, err)
 		return fallback()
 	}
 
 	if err := saveStatusline(payload); err != nil {
+		logStatuslineCall(payload, err)
 		return fallback()
 	}
 
+	logStatuslineCall(payload, nil)
+
 	fmt.Println(statuslineSummary(status))
 	return 0
+}
+
+// logStatuslineCall registers a call of the status line in the log of the
+// cache directory.
+//
+// The failure is silent: the log is only a diagnostic aid and must never
+// break the status line of the Claude Code.
+func logStatuslineCall(payload []byte, parseErr error) {
+	dir, err := os.UserCacheDir()
+	if err != nil {
+		return
+	}
+	_ = appendStatuslineLog(dir, time.Now(), payload, parseErr)
 }
 
 // statuslineInput is the payload written by the Claude Code status line.
@@ -431,6 +467,204 @@ func saveStatusline(payload []byte) error {
 		return fmt.Errorf("renomear %s: %w", name, err)
 	}
 	return nil
+}
+
+// appendStatuslineLog appends a line describing a call of the status line in
+// the log of the cache directory.
+//
+// The line holds only the metadata of the call: the payload itself is never
+// written, because it holds paths and data of the user. The parseErr is the
+// error of the parsing of the payload, when there was one.
+//
+// The log is trimmed when it grew past statuslineLogMaxSize: only the last
+// statuslineLogKeepLines lines are kept, counting the new one, so the file
+// never grows without limit. The file is only readable by its owner.
+func appendStatuslineLog(dir string, now time.Time, input []byte, parseErr error) error {
+	logDir := filepath.Join(dir, "llmwatch")
+	if err := os.MkdirAll(logDir, 0o700); err != nil {
+		return fmt.Errorf("criar diretório %s: %w", logDir, err)
+	}
+
+	path := filepath.Join(logDir, statuslineLogName)
+	line := statuslineLogLine(now, input, parseErr)
+
+	old, err := statuslineLogOld(path)
+	if err != nil {
+		return err
+	}
+
+	if len(old) == 0 {
+		return appendStatuslineLogLine(path, line)
+	}
+	return writeStatuslineLog(path, trimStatuslineLines(old, line))
+}
+
+// statuslineLogOld returns the content of the log when it must be trimmed.
+//
+// An empty content means that the log is small enough and that the new line
+// can simply be appended.
+func statuslineLogOld(path string) (string, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", fmt.Errorf("ler %s: %w", path, err)
+	}
+	if info.Size() <= statuslineLogMaxSize {
+		return "", nil
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("ler %s: %w", path, err)
+	}
+	return string(data), nil
+}
+
+// trimStatuslineLines keeps the last lines of the log and adds the new one.
+//
+// The result holds at most statuslineLogKeepLines lines, counting the new
+// one.
+func trimStatuslineLines(old string, line string) string {
+	lines := strings.Split(strings.TrimRight(old, "\n"), "\n")
+
+	// The new line is part of the kept lines.
+	keep := statuslineLogKeepLines - 1
+	if keep < 0 {
+		keep = 0
+	}
+	if len(lines) > keep {
+		lines = lines[len(lines)-keep:]
+	}
+	if len(lines) == 0 {
+		return line
+	}
+	return strings.Join(lines, "\n") + "\n" + line
+}
+
+// appendStatuslineLogLine appends a line in the log, creating it when it
+// does not exist yet.
+func appendStatuslineLogLine(path string, line string) error {
+	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	if err != nil {
+		return fmt.Errorf("abrir %s: %w", path, err)
+	}
+	defer func() {
+		_ = file.Close()
+	}()
+
+	if err := file.Chmod(0o600); err != nil {
+		return fmt.Errorf("ajustar permissão de %s: %w", path, err)
+	}
+	if _, err := file.WriteString(line); err != nil {
+		return fmt.Errorf("gravar %s: %w", path, err)
+	}
+	return nil
+}
+
+// writeStatuslineLog writes the content of the log in the file.
+//
+// The content is written in a temporary file of the same directory and
+// renamed, so a reader never sees a partial document. The file is only
+// readable by its owner.
+func writeStatuslineLog(path string, content string) error {
+	tmp, err := os.CreateTemp(filepath.Dir(path), "statusline-*.log")
+	if err != nil {
+		return fmt.Errorf("criar arquivo temporário: %w", err)
+	}
+	name := tmp.Name()
+	defer func() {
+		_ = os.Remove(name)
+	}()
+
+	if _, err := tmp.WriteString(content); err != nil {
+		_ = tmp.Close()
+		return fmt.Errorf("gravar %s: %w", name, err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("fechar %s: %w", name, err)
+	}
+	if err := os.Chmod(name, 0o600); err != nil {
+		return fmt.Errorf("ajustar permissão de %s: %w", name, err)
+	}
+	if err := os.Rename(name, path); err != nil {
+		return fmt.Errorf("renomear %s: %w", name, err)
+	}
+	return nil
+}
+
+// statuslineLogLine builds the line describing a call of the status line.
+//
+// The format is "time bytes=<n> rate_limits=<keys> model=<id> version=<v>
+// erro=<message>", where the missing values are replaced by a dash and the
+// missing keys by "ausente".
+func statuslineLogLine(now time.Time, input []byte, parseErr error) string {
+	limits, model, ver := "ausente", "-", "-"
+	message := "-"
+
+	if parseErr != nil {
+		message = parseErr.Error()
+	} else {
+		limits, model, ver = statuslineMetadata(input)
+	}
+
+	return fmt.Sprintf("%s bytes=%d rate_limits=%s model=%s version=%s erro=%s\n",
+		now.Format(time.RFC3339), len(input), limits, model, ver, message)
+}
+
+// statuslineMetadata extracts the keys of the rate limits, the identifier of
+// the model and the version of the payload of the status line.
+//
+// The keys of the rate limits are sorted, so the line is stable. The values
+// that are missing are reported as "ausente" or as a dash.
+func statuslineMetadata(input []byte) (string, string, string) {
+	limits, model, ver := "ausente", "-", "-"
+
+	var document struct {
+		Model struct {
+			ID string `json:"id"`
+		} `json:"model"`
+		RateLimits json.RawMessage `json:"rate_limits"`
+		Version    string          `json:"version"`
+	}
+	if err := json.Unmarshal(input, &document); err != nil {
+		return limits, model, ver
+	}
+
+	if document.Model.ID != "" {
+		model = document.Model.ID
+	}
+	if document.Version != "" {
+		ver = document.Version
+	}
+
+	keys := rateLimitKeys(document.RateLimits)
+	if len(keys) > 0 {
+		limits = strings.Join(keys, ",")
+	}
+	return limits, model, ver
+}
+
+// rateLimitKeys returns the sorted keys of the rate limits of the payload.
+//
+// An empty list is returned when the rate limits are absent or invalid.
+func rateLimitKeys(raw json.RawMessage) []string {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil
+	}
+
+	var limits map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &limits); err != nil {
+		return nil
+	}
+
+	keys := make([]string, 0, len(limits))
+	for key := range limits {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 // cmdSetupClaude configures the status line of the Claude Code.
