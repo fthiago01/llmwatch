@@ -1,20 +1,22 @@
-﻿<#
+<#
 .SYNOPSIS
     Instalador do llmwatch para Windows.
 
 .DESCRIPTION
-    Baixa o binário do llmwatch a partir das releases do GitHub, valida o
+    Baixa o binario do llmwatch a partir das releases do GitHub, valida o
     checksum SHA256, instala em %LOCALAPPDATA%\llmwatch\bin, adiciona o
-    diretório ao PATH do usuário e registra uma tarefa agendada que sobe o
+    diretorio ao PATH do usuario e registra uma tarefa agendada que sobe o
     servidor em segundo plano a cada login, sem abrir janela.
 
 .PARAMETER Uninstall
-    Remove a instalação: tarefa agendada, processo, binário e o diretório
-    do PATH. Mantém os dados em %APPDATA%\llmwatch.
+    Remove a instalacao: tarefa agendada, processo, binario e o diretorio
+    do PATH. Mantem os dados em %APPDATA%\llmwatch.
+    Tambem pode ser ativado com $env:LLMWATCH_UNINSTALL='1' (irm | iex).
 
 .PARAMETER Purge
-    Com -Uninstall, também apaga os dados em %APPDATA%\llmwatch. Pede
-    confirmação, a menos que $env:LLMWATCH_YES='1'.
+    Com -Uninstall, tambem apaga os dados em %APPDATA%\llmwatch. Pede
+    confirmacao, a menos que $env:LLMWATCH_YES='1'.
+    Tambem pode ser ativado com $env:LLMWATCH_PURGE='1'.
 
 .EXAMPLE
     irm https://raw.githubusercontent.com/fthiago01/llmwatch/main/install.ps1 | iex
@@ -27,15 +29,20 @@ param(
     [switch]$Purge
 )
 
+# param() e valido no inicio do texto passado a Invoke-Expression.
+# O escopo filho isola funcoes, variaveis e preferencias da sessao do usuario.
+& {
+param([switch]$Uninstall, [switch]$Purge)
+
 $ErrorActionPreference = 'Stop'
 
 # --- Constantes -------------------------------------------------------------
 
-$script:DefaultRepo    = 'fthiago01/llmwatch'
-$script:TaskName      = 'llmwatch'
-$script:InstallDirName = 'llmwatch'
-$script:DefaultAddr   = '127.0.0.1:18123'
-$script:TaskUser       = "$env:USERDOMAIN\$env:USERNAME"
+$DefaultRepo    = 'fthiago01/llmwatch'
+$TaskName       = 'llmwatch'
+$InstallDirName = 'llmwatch'
+$DefaultAddr    = '127.0.0.1:18123'
+$TaskUser       = "$env:USERDOMAIN\$env:USERNAME"
 
 # --- Utilitarios -------------------------------------------------------------
 
@@ -70,6 +77,31 @@ function Test-Dependency {
     return $null -ne (Get-Command $Name -ErrorAction SilentlyContinue)
 }
 
+# No 5.1, stderr redirecionado gera ErrorRecord e pode lancar com Stop.
+# No 7, nao herdar a politica opcional de erros de comandos nativos.
+function Invoke-NativeCommand {
+    param([string]$Command, [string[]]$Arguments = @())
+    if ([System.IO.Path]::IsPathRooted($Command)) {
+        if (-not [System.IO.File]::Exists($Command)) {
+            throw "Executavel nao encontrado: '$Command'."
+        }
+        $applicationPath = $Command
+    } else {
+        $application = Get-Command -Name $Command -CommandType Application -ErrorAction Stop |
+            Select-Object -First 1
+        $applicationPath = $application.Source
+    }
+    $ErrorActionPreference = 'Continue'
+    $PSNativeCommandUseErrorActionPreference = $false
+    $LASTEXITCODE = $null
+    $output = (& $applicationPath @Arguments 2>&1 | Out-String).Trim()
+    $code = $LASTEXITCODE
+    if ($null -eq $code) {
+        throw "Nao foi possivel executar '$Command'. $output"
+    }
+    return [pscustomobject]@{ Output = $output; ExitCode = $code }
+}
+
 # Get-Architecture maps the processor architecture to the name used by the
 # release assets (amd64 or arm64).
 #
@@ -95,7 +127,7 @@ function Get-Repo {
     if (-not [string]::IsNullOrWhiteSpace($env:LLMWATCH_REPO)) {
         return $env:LLMWATCH_REPO.Trim()
     }
-    return $script:DefaultRepo
+    return $DefaultRepo
 }
 
 # Get-Version returns the requested version or 'latest'.
@@ -112,7 +144,7 @@ function Get-InstallDir {
     if ([string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
         throw "Variavel de ambiente LOCALAPPDATA nao definida."
     }
-    return (Join-Path $env:LOCALAPPDATA $script:InstallDirName)
+    return (Join-Path $env:LOCALAPPDATA $InstallDirName)
 }
 
 # Get-BinDir returns the directory holding the executable.
@@ -126,7 +158,7 @@ function Get-DataDir {
     if ([string]::IsNullOrWhiteSpace($env:APPDATA)) {
         throw "Variavel de ambiente APPDATA nao definida."
     }
-    return (Join-Path $env:APPDATA $script:InstallDirName)
+    return (Join-Path $env:APPDATA $InstallDirName)
 }
 
 # Get-Address returns the address the server listens on.
@@ -134,42 +166,74 @@ function Get-Address {
     if (-not [string]::IsNullOrWhiteSpace($env:LLMWATCH_ADDR)) {
         return $env:LLMWATCH_ADDR.Trim()
     }
-    return $script:DefaultAddr
+    return $DefaultAddr
 }
 
-# Get-UserPath returns the PATH of the current user, without duplicates.
-#
-# The comparison ignores the case, as Windows treats the paths as case
-# insensitive.
+# Ler o valor bruto evita expandir e substituir entradas como %USERPROFILE%.
+function Get-UserPathValue {
+    $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment')
+    if ($null -eq $key) { return '' }
+    try {
+        return [string]$key.GetValue('Path', '', [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+    } finally {
+        $key.Close()
+    }
+}
+
+function Set-UserPathValue {
+    param([string]$Value)
+    # Preservar REG_SZ/REG_EXPAND_SZ; um PATH novo pode usar referencias %VAR%.
+    $key = [Microsoft.Win32.Registry]::CurrentUser.CreateSubKey('Environment')
+    try {
+        $kind = [Microsoft.Win32.RegistryValueKind]::ExpandString
+        if ($key.GetValueNames() -contains 'Path') {
+            $kind = $key.GetValueKind('Path')
+        }
+        if ($kind -ne [Microsoft.Win32.RegistryValueKind]::String -and
+            $kind -ne [Microsoft.Win32.RegistryValueKind]::ExpandString) {
+            throw 'O PATH do usuario no Registro nao e um valor de texto.'
+        }
+        $key.SetValue('Path', $Value, $kind)
+    } finally {
+        $key.Close()
+    }
+    # Notificar o Explorer sem usar setx (que pode truncar o PATH).
+    if ($null -eq ('LlmwatchInstaller.EnvironmentNotification' -as [type])) {
+        Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+namespace LlmwatchInstaller {
+    public static class EnvironmentNotification {
+        [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        public static extern IntPtr SendMessageTimeout(IntPtr window, uint message,
+            UIntPtr wParam, string lParam, uint flags, uint timeout, out UIntPtr result);
+    }
+}
+'@
+    }
+    $result = [UIntPtr]::Zero
+    [void][LlmwatchInstaller.EnvironmentNotification]::SendMessageTimeout(
+        [IntPtr]65535, 0x001A, [UIntPtr]::Zero, 'Environment', 2, 1000, [ref]$result)
+}
+
+# Comparar sem mudar o texto, a ordem ou as entradas alheias no PATH.
+function Get-PathEntryKey {
+    param([string]$Entry)
+    return [Environment]::ExpandEnvironmentVariables($Entry.Trim().Trim('"')).Replace('/', '\').TrimEnd('\')
+}
+
 function Get-UserPath {
-    $raw = [Environment]::GetEnvironmentVariable('Path', 'User')
-    if ([string]::IsNullOrWhiteSpace($raw)) {
-        return @()
-    }
-    $entries = New-Object System.Collections.Generic.List[string]
-    foreach ($part in $raw -split ';') {
-        $trimmed = $part.Trim()
-        if ($trimmed.Length -eq 0) { continue }
-        $duplicate = $false
-        foreach ($existing in $entries) {
-            if ($existing -ieq $trimmed) {
-                $duplicate = $true
-                break
-            }
-        }
-        if (-not $duplicate) {
-            [void]$entries.Add($trimmed)
-        }
-    }
-    return $entries.ToArray()
+    $raw = Get-UserPathValue
+    if ($raw.Length -eq 0) { return @() }
+    return ($raw -split ';')
 }
 
 # Test-PathEntry reports whether a directory is already in the user PATH.
 function Test-PathEntry {
     param([string]$Directory)
-    $target = $Directory.TrimEnd('\')
+    $target = Get-PathEntryKey $Directory
     foreach ($entry in (Get-UserPath)) {
-        if ($entry.TrimEnd('\') -ieq $target) {
+        if ((Get-PathEntryKey $entry) -ieq $target) {
             return $true
         }
     }
@@ -183,11 +247,10 @@ function Add-UserPathEntry {
     if (Test-PathEntry -Directory $Directory) {
         return $false
     }
-    $entries = @(Get-UserPath)
-    $new = New-Object System.Collections.Generic.List[string]
-    foreach ($entry in $entries) { [void]$new.Add($entry) }
-    [void]$new.Add($Directory.TrimEnd('\'))
-    [Environment]::SetEnvironmentVariable('Path', ($new -join ';'), 'User')
+    $raw = Get-UserPathValue
+    $separator = ''
+    if ($raw.Length -gt 0 -and -not $raw.EndsWith(';')) { $separator = ';' }
+    Set-UserPathValue -Value ($raw + $separator + $Directory.TrimEnd('\'))
     return $true
 }
 
@@ -195,19 +258,19 @@ function Add-UserPathEntry {
 # true when the PATH was changed.
 function Remove-UserPathEntry {
     param([string]$Directory)
-    $target = $Directory.TrimEnd('\')
+    $target = Get-PathEntryKey $Directory
     $entries = @(Get-UserPath)
     $kept = New-Object System.Collections.Generic.List[string]
     $changed = $false
     foreach ($entry in $entries) {
-        if ($entry.TrimEnd('\') -ieq $target) {
+        if ((Get-PathEntryKey $entry) -ieq $target) {
             $changed = $true
             continue
         }
         [void]$kept.Add($entry)
     }
     if ($changed) {
-        [Environment]::SetEnvironmentVariable('Path', ($kept -join ';'), 'User')
+        Set-UserPathValue -Value ($kept -join ';')
     }
     return $changed
 }
@@ -221,9 +284,9 @@ function Add-SessionPathEntry {
         return
     }
     $parts = $session -split ';'
-    $target = $Directory.TrimEnd('\')
+    $target = Get-PathEntryKey $Directory
     foreach ($part in $parts) {
-        if ($part.Trim().TrimEnd('\') -ieq $target) {
+        if ((Get-PathEntryKey $part) -ieq $target) {
             return
         }
     }
@@ -245,7 +308,7 @@ function Get-LlmwatchTask {
         return $null
     }
     try {
-        return (Get-ScheduledTask -TaskName $script:TaskName -ErrorAction SilentlyContinue)
+        return (Get-ScheduledTask -TaskName $TaskName -TaskPath '\' -ErrorAction SilentlyContinue)
     } catch {
         return $null
     }
@@ -257,13 +320,13 @@ function Stop-Llmwatch {
     if ($null -ne $task) {
         try {
             if (Test-Dependency 'Stop-ScheduledTask') {
-                Stop-ScheduledTask -TaskName $script:TaskName -ErrorAction SilentlyContinue
+                Stop-ScheduledTask -TaskName $TaskName -TaskPath '\' -ErrorAction SilentlyContinue
             }
         } catch {
             Write-Warn "Nao foi possivel parar a tarefa agendada: $($_.Exception.Message)"
         }
     }
-    $procs = Get-LlmwatchProcess
+    $procs = @(Get-LlmwatchProcess)
     foreach ($proc in $procs) {
         try {
             Stop-Process -Id $proc.Id -Force -ErrorAction Stop
@@ -309,13 +372,14 @@ function Get-ReleaseWithGh {
         return $false
     }
     Write-Info "Baixando com o GitHub CLI (gh)..."
-    $args = @('release', 'download')
+    $ghArguments = @('release', 'download')
     if ($Version -ne 'latest') {
-        $args += $Version
+        $ghArguments += $Version
     }
-    $args += @('-R', $Repo, '-p', $AssetName, '-p', 'checksums.txt', '-D', $TempDir)
-    $output = (& gh @args 2>&1 | Out-String).Trim()
-    if ($LASTEXITCODE -ne 0) {
+    $ghArguments += @('-R', $Repo, '-p', $AssetName, '-p', 'checksums.txt', '-D', $TempDir)
+    $download = Invoke-NativeCommand -Command 'gh' -Arguments $ghArguments
+    $output = $download.Output
+    if ($download.ExitCode -ne 0) {
         $detail = ''
         if (-not [string]::IsNullOrWhiteSpace($output)) {
             $detail = " Detalhe: $output"
@@ -342,7 +406,10 @@ function Get-Release {
     $assetPath = Join-Path $TempDir $AssetName
     $checksPath = Join-Path $TempDir 'checksums.txt'
 
+    $previousProgress = $ProgressPreference
+    $previousProtocol = [Net.ServicePointManager]::SecurityProtocol
     try {
+        $ProgressPreference = 'SilentlyContinue'
         Write-Info "Baixando $AssetName..."
         # Garante o TLS 1.2, necessario para o GitHub em Windows antigos.
         [Net.ServicePointManager]::SecurityProtocol = `
@@ -352,6 +419,9 @@ function Get-Release {
         return @{ Asset = $assetPath; Checks = $checksPath }
     } catch {
         Write-Warn "Download direto falhou: $($_.Exception.Message)"
+    } finally {
+        $ProgressPreference = $previousProgress
+        [Net.ServicePointManager]::SecurityProtocol = $previousProtocol
     }
 
     # The repository may be private: fall back to the GitHub CLI.
@@ -363,12 +433,18 @@ autentique com 'gh auth login' e execute o instalador novamente.
 "@
     }
 
+    # gh recusa sobrescrever arquivos deixados por um download incompleto.
+    foreach ($partialPath in @($assetPath, $checksPath)) {
+        if (Test-Path -LiteralPath $partialPath) {
+            Remove-Item -LiteralPath $partialPath -Force
+        }
+    }
     [void](Get-ReleaseWithGh -Repo $Repo -Version $Version -AssetName $AssetName -TempDir $TempDir)
 
-    if (-not (Test-Path $assetPath)) {
+    if (-not (Test-Path -LiteralPath $assetPath)) {
         throw "O GitHub CLI nao baixou o arquivo '$AssetName'."
     }
-    if (-not (Test-Path $checksPath)) {
+    if (-not (Test-Path -LiteralPath $checksPath)) {
         throw "O GitHub CLI nao baixou o arquivo 'checksums.txt'."
     }
     return @{ Asset = $assetPath; Checks = $checksPath }
@@ -383,14 +459,11 @@ function Test-Checksum {
     )
     $name = Split-Path $FilePath -Leaf
     $expected = $null
-    foreach ($line in (Get-Content $ChecksPath)) {
-        if ([string]::IsNullOrWhiteSpace($line)) { continue }
-        $parts = $line -split '\s+', 2
-        if ($parts.Count -lt 2) { continue }
-        $hash = $parts[0].Trim()
-        $file = $parts[1].Trim()
-        # Remove the prefix '*' used by binary mode in sha256sum.
-        $file = $file.TrimStart('*')
+    foreach ($line in (Get-Content -LiteralPath $ChecksPath -Encoding UTF8)) {
+        # Aceitar espacos iniciais, tabs, CRLF e o marcador binario '*'.
+        if ($line -notmatch '^\s*([0-9a-fA-F]{64})\s+\*?(.+?)\s*$') { continue }
+        $hash = $Matches[1]
+        $file = $Matches[2]
         if ([System.IO.Path]::GetFileName($file) -ieq $name) {
             $expected = $hash
             break
@@ -400,7 +473,7 @@ function Test-Checksum {
         throw "O arquivo '$name' nao esta listado em checksums.txt."
     }
 
-    $actual = (Get-FileHash -Path $FilePath -Algorithm SHA256).Hash
+    $actual = (Get-FileHash -LiteralPath $FilePath -Algorithm SHA256).Hash
     if ($actual -ine $expected) {
         throw @"
 Checksum divergente em '$name'.
@@ -422,11 +495,12 @@ function New-HiddenLauncher {
         [string]$VbsPath
     )
     $escaped = $ExePath.Replace('"', '""')
-    $content = @"
-Set shell = CreateObject("Wscript.Shell")
-shell.Run """$escaped"" serve", 0, False
-"@
-    Set-Content -Path $VbsPath -Value $content -Encoding ASCII
+    $content = @(
+        'Set shell = CreateObject("Wscript.Shell")'
+        ('shell.Run """{0}"" serve", 0, False' -f $escaped)
+    )
+    # O .ps1 e ASCII; o VBS precisa preservar nomes de usuario com acentos.
+    Set-Content -LiteralPath $VbsPath -Value $content -Encoding Unicode
     return $VbsPath
 }
 
@@ -440,24 +514,25 @@ function Register-LlmwatchTask {
         throw "O modulo ScheduledTasks nao esta disponivel nesta versao do PowerShell."
     }
 
-    $action = New-ScheduledTaskAction -Execute 'wscript.exe' -Argument "`"$VbsPath`""
-    $trigger = New-ScheduledTaskTrigger -AtLogOn -User $script:TaskUser
+    $wscriptPath = Join-Path $env:SystemRoot 'System32\wscript.exe'
+    $action = New-ScheduledTaskAction -Execute $wscriptPath -Argument "`"$VbsPath`""
+    $trigger = New-ScheduledTaskTrigger -AtLogOn -User $TaskUser
     $settings = New-ScheduledTaskSettingsSet `
         -AllowStartIfOnBatteries `
         -DontStopIfGoingOnBatteries `
         -ExecutionTimeLimit ([TimeSpan]::Zero) `
         -RestartCount 3 `
         -RestartInterval (New-TimeSpan -Minutes 1)
-    $principal = New-ScheduledTaskPrincipal -UserId $script:TaskUser -LogonType Interactive -RunLevel Limited
+    $principal = New-ScheduledTaskPrincipal -UserId $TaskUser -LogonType Interactive -RunLevel Limited
 
-    Register-ScheduledTask -TaskName $script:TaskName `
+    Register-ScheduledTask -TaskName $TaskName -TaskPath '\' `
         -Action $action `
         -Trigger $trigger `
         -Settings $settings `
         -Principal $principal `
         -Force | Out-Null
 
-    Start-ScheduledTask -TaskName $script:TaskName
+    Start-ScheduledTask -TaskName $TaskName -TaskPath '\'
 }
 
 # --- Instalacao -------------------------------------------------------------
@@ -503,9 +578,9 @@ function Install-Llmwatch {
         Write-Step "Instalando o binario"
         $extractDir = Join-Path $tempDir 'extract'
         New-Item -ItemType Directory -Path $extractDir -Force | Out-Null
-        Expand-Archive -Path $files.Asset -DestinationPath $extractDir -Force
+        Expand-Archive -LiteralPath $files.Asset -DestinationPath $extractDir -Force
 
-        $exeSource = Get-ChildItem -Path $extractDir -Filter 'llmwatch.exe' -Recurse -File |
+        $exeSource = Get-ChildItem -LiteralPath $extractDir -Filter 'llmwatch.exe' -Recurse -File |
             Select-Object -First 1
         if ($null -eq $exeSource) {
             throw "O arquivo 'llmwatch.exe' nao foi encontrado dentro de '$assetName'."
@@ -514,7 +589,7 @@ function Install-Llmwatch {
         $binDir = Get-BinDir
         New-Item -ItemType Directory -Path $binDir -Force | Out-Null
         $exePath = Join-Path $binDir 'llmwatch.exe'
-        Copy-Item -Path $exeSource.FullName -Destination $exePath -Force
+        Copy-Item -LiteralPath $exeSource.FullName -Destination $exePath -Force
         Write-Ok "Binario instalado em $exePath"
 
         Write-Step "Configurando o PATH"
@@ -525,8 +600,8 @@ function Install-Llmwatch {
         }
         Add-SessionPathEntry -Directory $binDir
     } finally {
-        if (Test-Path $tempDir) {
-            Remove-Item -Path $tempDir -Recurse -Force -ErrorAction SilentlyContinue
+        if (Test-Path -LiteralPath $tempDir) {
+            Remove-Item -LiteralPath $tempDir -Recurse -Force -ErrorAction SilentlyContinue
         }
     }
 
@@ -534,10 +609,8 @@ function Install-Llmwatch {
     Write-Step "Inicializando o llmwatch"
     $initOutput = ''
     try {
-        $initOutput = (& $exePath init 2>&1 | Out-String).Trim()
-        if ($LASTEXITCODE -ne 0) {
-            throw "'llmwatch init' falhou com codigo $LASTEXITCODE."
-        }
+        $init = Invoke-NativeCommand -Command $exePath -Arguments @('init')
+        $initOutput = $init.Output
     } catch {
         throw "Falha ao executar 'llmwatch init': $($_.Exception.Message)"
     }
@@ -545,6 +618,9 @@ function Install-Llmwatch {
         foreach ($line in ($initOutput -split "`r?`n")) {
             Write-Info $line
         }
+    }
+    if ($init.ExitCode -ne 0) {
+        throw "'llmwatch init' falhou com codigo $($init.ExitCode)."
     }
 
     # 7. Endereco
@@ -557,7 +633,7 @@ function Install-Llmwatch {
     $addr = Get-Address
     if ($env:LLMWATCH_NO_SERVICE -eq '1') {
         Write-Step "Inicializacao automatica desativada (LLMWATCH_NO_SERVICE=1)"
-        Write-Info "Para subir o servidor manualmente: `"$exePath`" serve"
+        Write-Info "Para subir o servidor manualmente: & `"$exePath`" serve"
     } else {
         Write-Step "Registrando a inicializacao automatica"
         $vbsPath = Join-Path (Get-InstallDir) 'llmwatch-hidden.vbs'
@@ -566,10 +642,10 @@ function Install-Llmwatch {
 
         try {
             Register-LlmwatchTask -VbsPath $vbsPath
-            Write-Ok "Tarefa agendada '$script:TaskName' registrada e iniciada."
+            Write-Ok "Tarefa agendada '$TaskName' registrada e iniciada."
         } catch {
             Write-Warn "Nao foi possivel registrar a tarefa agendada: $($_.Exception.Message)"
-            Write-Info "Voce ainda pode iniciar o servidor manualmente: `"$exePath`" serve"
+            Write-Info "Voce ainda pode iniciar o servidor manualmente: & `"$exePath`" serve"
         }
     }
 
@@ -580,7 +656,8 @@ function Install-Llmwatch {
 
     $versionOutput = ''
     try {
-        $versionOutput = (& $exePath version 2>&1 | Out-String).Trim()
+        $versionResult = Invoke-NativeCommand -Command $exePath -Arguments @('version')
+        if ($versionResult.ExitCode -eq 0) { $versionOutput = $versionResult.Output }
     } catch {
         $versionOutput = ''
     }
@@ -594,7 +671,7 @@ function Install-Llmwatch {
         Write-Host ""
         Write-Host "  Senha inicial: $($Matches[1])" -ForegroundColor Yellow
         Write-Host "  Troque a senha no primeiro acesso ao painel." -ForegroundColor Yellow
-    } elseif ($initOutput -match 'ja inicializado') {
+    } elseif ($initOutput -match 'j[a\u00e1] inicializado') {
         Write-Host ""
         Write-Host "  O llmwatch ja estava inicializado (senha existente mantida)." -ForegroundColor Gray
     }
@@ -621,14 +698,16 @@ function Uninstall-Llmwatch {
     if ($null -ne $task) {
         try {
             if (Test-Dependency 'Unregister-ScheduledTask') {
-                Unregister-ScheduledTask -TaskName $script:TaskName -Confirm:$false
+                Unregister-ScheduledTask -TaskName $TaskName -TaskPath '\' -Confirm:$false
+            } else {
+                throw "O comando Unregister-ScheduledTask nao esta disponivel."
             }
-            Write-Ok "Tarefa '$script:TaskName' removida."
+            Write-Ok "Tarefa '$TaskName' removida."
         } catch {
             Write-Warn "Nao foi possivel remover a tarefa agendada: $($_.Exception.Message)"
         }
     } else {
-        Write-Info "A tarefa '$script:TaskName' nao existe."
+        Write-Info "A tarefa '$TaskName' nao existe."
     }
 
     # 2. Processo
@@ -647,8 +726,8 @@ function Uninstall-Llmwatch {
     # 4. Arquivos do programa
     Write-Step "Removendo os arquivos do programa"
     $installDir = Get-InstallDir
-    if (Test-Path $installDir) {
-        Remove-Item -Path $installDir -Recurse -Force -ErrorAction SilentlyContinue
+    if (Test-Path -LiteralPath $installDir) {
+        Remove-Item -LiteralPath $installDir -Recurse -Force
         Write-Ok "Removido: $installDir"
     } else {
         Write-Info "O diretorio '$installDir' nao existe."
@@ -658,10 +737,10 @@ function Uninstall-Llmwatch {
     $dataDir = Get-DataDir
     if ($Purge) {
         Write-Step "Removendo os dados"
-        if (-not (Test-Path $dataDir)) {
+        if (-not (Test-Path -LiteralPath $dataDir)) {
             Write-Info "O diretorio '$dataDir' nao existe."
         } elseif ($env:LLMWATCH_YES -eq '1') {
-            Remove-Item -Path $dataDir -Recurse -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $dataDir -Recurse -Force
             Write-Ok "Removido: $dataDir"
         } else {
             Write-Host ""
@@ -670,7 +749,7 @@ function Uninstall-Llmwatch {
             Write-Host "  $dataDir" -ForegroundColor Yellow
             $answer = Read-Host "Confirmar a remocao dos dados? (s/N)"
             if ($answer -match '^[sSyY]') {
-                Remove-Item -Path $dataDir -Recurse -Force -ErrorAction SilentlyContinue
+                Remove-Item -LiteralPath $dataDir -Recurse -Force
                 Write-Ok "Removido: $dataDir"
             } else {
                 Write-Info "Remocao cancelada; os dados foram mantidos."
@@ -691,6 +770,12 @@ function Uninstall-Llmwatch {
 # --- Execucao ---------------------------------------------------------------
 
 try {
+    if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT) {
+        throw 'Este instalador requer Windows.'
+    }
+    if ($PSVersionTable.PSVersion -lt [version]'5.1') {
+        throw 'Este instalador requer Windows PowerShell 5.1 ou PowerShell 7.'
+    }
     if ($Uninstall) {
         Uninstall-Llmwatch
     } else {
@@ -704,3 +789,5 @@ try {
     # "return" em vez de "exit": com "irm | iex" o exit fecharia a janela do PowerShell.
     return
 }
+} -Uninstall:($Uninstall -or $env:LLMWATCH_UNINSTALL -eq '1') `
+  -Purge:($Purge -or $env:LLMWATCH_PURGE -eq '1')
