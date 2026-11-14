@@ -1,0 +1,38 @@
+name: Bug
+description: Algo não funciona como deveria
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: O que aconteceu
+      description: O que você fez, o que esperava e o que aconteceu. Prints ajudam.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Versão
+      description: Saída de `llmwatch version` ou o rodapé do painel.
+      placeholder: v0.2.8
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Sistema
+      options: [Linux, macOS, Windows]
+    validations:
+      required: true
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Provedor envolvido
+      multiple: true
+      options: [Claude Code, Codex, opencode, MiniMax, Nenhum / painel em geral]
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Saída de `llmwatch status` ou do serviço. Remova chaves de API e dados pessoais.
+      render: text

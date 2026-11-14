@@ -8,6 +8,7 @@ Claude Code · OpenAI Codex · opencode · MiniMax
 
 [![Release](https://img.shields.io/github/v/release/fthiago01/llmwatch)](https://github.com/fthiago01/llmwatch/releases/latest)
 ![Go](https://img.shields.io/badge/Go-sem%20CGO-00ADD8)
+[![Licença](https://img.shields.io/badge/licen%C3%A7a-MIT-green)](LICENSE)
 ![Plataformas](https://img.shields.io/badge/Linux%20%C2%B7%20macOS%20%C2%B7%20Windows-binário%20único-555)
 
 ![Painel do llmwatch no tema escuro](docs/screenshots/dashboard-dark.png)
@@ -437,3 +438,14 @@ git push --tags
 A tag dispara o workflow `.github/workflows/release.yml`, que roda os testes e
 publica binários para **linux, darwin e windows**, nas arquiteturas **amd64 e
 arm64**, junto com o `checksums.txt` usado pelos instaladores.
+
+---
+
+## Contribuindo
+
+Contribuições são bem-vindas! Leia o [guia de contribuição](CONTRIBUTING.md) e
+abra uma [issue](https://github.com/fthiago01/llmwatch/issues/new/choose) ou um pull request.
+
+## Licença
+
+[MIT](LICENSE) © fthiago01
