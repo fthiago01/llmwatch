@@ -1,18 +1,49 @@
+<div align="center">
+
 # llmwatch
 
-Painel local que mostra em tempo real (WebSocket) o consumo de tokens e os limites dos planos de **Claude Code**, **OpenAI Codex** e **MiniMax**, lendo dados locais e APIs dos provedores.
+**Quanto você está gastando com IA — tokens, custo e limites do plano — num painel local, em tempo real.**
+
+Claude Code · OpenAI Codex · opencode · MiniMax
+
+[![Release](https://img.shields.io/github/v/release/fthiago01/llmwatch)](https://github.com/fthiago01/llmwatch/releases/latest)
+![Go](https://img.shields.io/badge/Go-sem%20CGO-00ADD8)
+![Plataformas](https://img.shields.io/badge/Linux%20%C2%B7%20macOS%20%C2%B7%20Windows-binário%20único-555)
+
+![Painel do llmwatch no tema escuro](docs/screenshots/dashboard-dark.png)
+
+</div>
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/fthiago01/llmwatch/main/install.sh | bash
+```
+
+Abra **http://localhost:18123** e pronto: o llmwatch lê os logs que as suas ferramentas já gravam na máquina. Nada sai do seu computador.
 
 ---
 
 ## Recursos
 
-- **Limites do plano** (janela de 5h e semanal: % usado, % restante e horário de reset) via *status line* do Claude Code, *app-server* do `codex` e API `token_plan/remains` da MiniMax.
-- **Consumo de tokens por provider/modelo** nas janelas **5h**, **hoje**, **7d** e **30d**, a partir dos logs do Claude Code, do opencode e do Codex.
-- **Bloco de 5h estimado** a partir dos tokens locais, com limite por provedor.
-- **Gráfico das últimas 24h**, com tokens por hora separados por provider.
-- **Página de admin** (`/admin`) para cadastrar providers e chaves de API, com teste de conexão por provider.
-- **Login com senha** (cookie de sessão) e troca de senha obrigatória no primeiro acesso.
+- **Visão da semana** — tokens, custo estimado, requisições e taxa de cache dos últimos 7 dias, com variação e tendência de 30 dias.
+- **Limites do plano** (janela de 5h e semanal: % restante e horário de reset) via *status line* do Claude Code, *app-server* do `codex` e API `token_plan/remains` da MiniMax.
+- **Custo estimado** de cada resposta do Claude Code pela tabela de preços de cada modelo; o opencode informa o próprio custo.
+- **Sessões e projetos** — cada sessão com projeto, modelo, duração, turnos, tokens e custo, com busca; e o ranking de projetos dos últimos 30 dias.
+- **Atividade de 12 semanas** num heatmap em favo de mel, e **gráfico das últimas 24h** por provider.
+- **Consumo por provider/modelo** nas janelas **5h**, **hoje**, **7d** e **30d**, e **bloco de 5h estimado** com limite por provedor.
+- **Tema claro, escuro ou do sistema**, layout responsivo do monitor ao celular, **app instalável** e **widget flutuante**.
+- **Página de admin** (`/admin`) para cadastrar providers e chaves de API, com teste de conexão.
+- **Login com senha** e troca obrigatória no primeiro acesso.
 - **Binário único, sem dependências** — Go puro, sem CGO, sem runtime externo.
+
+<table>
+  <tr>
+    <td width="66%"><img src="docs/screenshots/dashboard-light.png" alt="Painel no tema claro"></td>
+    <td rowspan="2" width="34%"><img src="docs/screenshots/mobile-dark.png" alt="Painel no celular"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/admin-dark.png" alt="Página de admin com os providers"></td>
+  </tr>
+</table>
 
 ---
 
