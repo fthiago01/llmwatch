@@ -43,6 +43,10 @@
     --glow: 0.45;
     --tip: #1d1c1a;
     --tipText: #fff;
+    /* Heatmap and KPI colors: the empty cell of the honeycomb and the
+       intensity of the tint painted behind the KPI cards. */
+    --empty: #eeede9;
+    --tint: 0.12;
   }
   :root[data-theme="light"] { color-scheme: light; }
   :root[data-theme="dark"] { color-scheme: dark; }
@@ -70,6 +74,8 @@
       --glow: 1;
       --tip: #050505;
       --tipText: #f3f2ee;
+      --empty: #151514;
+      --tint: 0.2;
     }
   }
   :root[data-theme="dark"] {
@@ -95,6 +101,8 @@
     --glow: 1;
     --tip: #050505;
     --tipText: #f3f2ee;
+    --empty: #151514;
+    --tint: 0.2;
   }
 
   * {
@@ -159,6 +167,14 @@
     min-height: 0;
   }
 
+  /* The heatmap and the projects share a row of their own. */
+  .heatrow {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+  }
+
   header {
     display: flex;
     flex-wrap: wrap;
@@ -221,8 +237,10 @@
     min-width: 0;
     flex: 0 0 auto;
   }
+  /* The theme button is a square icon: it keeps its own styles and is left
+     out of the rules of the labeled buttons of the navigation. */
   .header-nav a,
-  .header-nav button {
+  .header-nav button:not(.theme-toggle) {
     color: var(--muted);
     text-decoration: none;
     font: inherit;
@@ -238,9 +256,9 @@
     transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
   }
   .header-nav a:hover,
-  .header-nav button:hover { color: var(--text); border-color: var(--faint); }
+  .header-nav button:not(.theme-toggle):hover { color: var(--text); border-color: var(--faint); }
   .header-nav a:focus-visible,
-  .header-nav button:focus-visible { outline: 2px solid var(--faint); outline-offset: 1px; }
+  .header-nav button:not(.theme-toggle):focus-visible { outline: 2px solid var(--faint); outline-offset: 1px; }
   .header-nav button[hidden] { display: none; }
 
   .theme-toggle {
@@ -249,6 +267,8 @@
     min-width: 34px;
     min-height: 34px;
     padding: 0;
+    margin: 0;
+    font: inherit;
     border: 1px solid var(--line2);
     border-radius: 9px;
     background: transparent;
@@ -256,6 +276,9 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    cursor: pointer;
+    flex: none;
+    overflow: hidden;
   }
   .theme-toggle:hover:not(:disabled) {
     color: var(--text);
@@ -455,6 +478,359 @@
     padding: 13px 14px;
     box-shadow: var(--shadow);
   }
+
+  /* ------------------------------------------------------- kpis and heatmap */
+
+  /* The KPI row: four cards, each with its own color, in the visual of the
+     ponytail board. The gradient of the card is painted behind the value,
+     so the card keeps its own color without touching the text. */
+  #kpiSection .kpis {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+  }
+
+  .card.kpi {
+    padding: 18px 20px 0;
+    position: relative;
+    overflow: hidden;
+    min-width: 0;
+  }
+
+  .card.kpi::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 75%;
+    background: radial-gradient(120% 100% at 50% 135%, var(--k), transparent 70%);
+    opacity: var(--tint);
+    pointer-events: none;
+  }
+
+  .kpi-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  .kpi-label::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--k);
+    box-shadow: 0 0 10px var(--k);
+    flex: none;
+  }
+
+  .kpi-value {
+    font-size: 30px;
+    margin-top: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .delta {
+    font-size: 12px;
+    margin-left: 8px;
+    vertical-align: 6px;
+  }
+  .delta.up { color: var(--ok); }
+  .delta.down { color: var(--bad); }
+
+  .kpi-note {
+    color: var(--faint);
+    font-size: 12px;
+  }
+
+  .spark {
+    display: block;
+    width: calc(100% + 40px);
+    height: 58px;
+    margin: 10px -20px 0;
+    position: relative;
+    z-index: 1;
+  }
+
+  .glow-line {
+    opacity: calc(var(--glow) * 0.8);
+  }
+
+  /* The heatmap: a honeycomb with one column per week. The drawing keeps
+     its own size, so the hexagons never stretch on a wide panel. */
+  #heatSection .heat {
+    padding: 20px 22px;
+  }
+
+  #heatSection .sub {
+    margin: 2px 0 14px;
+  }
+
+  #heat {
+    display: block;
+    width: 100%;
+    max-width: 640px;
+    height: auto;
+  }
+
+  .cell-empty {
+    fill: var(--empty);
+  }
+
+  .glow-cell {
+    opacity: calc(var(--glow) * 0.45);
+  }
+
+  .day {
+    fill: var(--faint);
+    font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12px;
+  }
+
+  /* -------------------------------------------------- projects and sessions */
+
+  /* The project card: one row per project, with its own color, a bar and
+     the number of tokens of the last thirty days. */
+  #projectSection .plist {
+    padding: 14px 22px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  #projectSection .prow {
+    display: grid;
+    grid-template-columns: 8px minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+    align-items: center;
+    gap: 4px 10px;
+    min-width: 0;
+  }
+
+  #projectSection .prow .dot {
+    grid-column: 1;
+    grid-row: 1;
+    background: var(--c);
+    box-shadow: 0 0 10px var(--c);
+  }
+
+  #projectSection .prow .pname {
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  #projectSection .prow .pbar {
+    grid-column: 2;
+    grid-row: 2;
+    height: 3px;
+    border-radius: 2px;
+    background: linear-gradient(90deg, var(--c), transparent);
+  }
+
+  #projectSection .prow .pval {
+    grid-column: 3;
+    grid-row: 1 / 3;
+    font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.03em;
+    color: var(--muted);
+    text-align: right;
+    white-space: nowrap;
+    align-self: center;
+  }
+
+  /* The sessions card: a header with the counter and the search, then the
+     table of the sessions of the last thirty days. */
+  #sessionSection .list {
+    padding: 20px 0 6px;
+  }
+
+  #sessionSection .list-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 0 22px 14px;
+    flex-wrap: wrap;
+  }
+
+  #sessionSection .list-head h3 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  #sessionSection .list-head h3 .n {
+    color: var(--faint);
+    font-weight: 400;
+  }
+
+  #sessionSection .search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--panel-alt);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 6px 10px;
+    width: 220px;
+    color: var(--faint);
+  }
+
+  #sessionSection .search input {
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: 13px;
+    width: 100%;
+  }
+
+  #sessionSection .search svg {
+    width: 14px;
+    height: 14px;
+    flex: none;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+  }
+
+  #sessionSection .table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* The table of the sessions keeps the style of the window table: a
+     numeric column on the right and the first column on the left. */
+  #sessionSection table {
+    min-width: 620px;
+    font-size: 13px;
+  }
+
+  #sessionSection th {
+    text-align: left;
+    text-transform: none;
+    letter-spacing: 0;
+    font-weight: 400;
+    font-size: 12px;
+    white-space: nowrap;
+    padding: 0 10px 10px;
+  }
+
+  #sessionSection td {
+    padding: 11px 10px;
+    white-space: nowrap;
+    vertical-align: middle;
+    text-align: left;
+  }
+
+  #sessionSection th:first-child, #sessionSection td:first-child {
+    text-align: left;
+    padding-left: 22px;
+  }
+
+  #sessionSection th:last-child, #sessionSection td:last-child {
+    padding-right: 22px;
+  }
+
+  #sessionSection th.r,
+  #sessionSection td.r { text-align: right; }
+
+  #sessionSection td.name {
+    text-align: left;
+    white-space: normal;
+    min-width: 140px;
+    max-width: 0;
+    width: 100%;
+  }
+
+  #sessionSection td.name .task {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  #sessionSection td.name .sub {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  #sessionSection .sub {
+    font-size: 12px;
+    color: var(--faint);
+  }
+
+  /* The bar of the tokens: a fixed track with a fill of its own, so the
+     column keeps the same width for every row. */
+  #sessionSection .sbar {
+    height: 3px;
+    border-radius: 2px;
+    margin-top: 6px;
+    margin-left: auto;
+    width: 64px;
+    background: var(--panel-alt);
+    overflow: hidden;
+  }
+
+  #sessionSection .sbar > i {
+    display: block;
+    height: 100%;
+    border-radius: 2px;
+    background: var(--c);
+  }
+
+  #sessionSection .provider .dot {
+    background: var(--c);
+    box-shadow: 0 0 10px var(--c);
+  }
+
+  #sessionSection .provider {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    white-space: nowrap;
+  }
+
+  #sessionSection td.empty {
+    text-align: center;
+    color: var(--faint);
+    padding: 32px;
+  }
+
+  #sessionSection .more {
+    display: block;
+    width: calc(100% - 44px);
+    margin: 14px 22px 6px;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    background: var(--panel-alt);
+    border: 1px solid var(--border);
+    border-radius: 11px;
+    padding: 8px 14px;
+    cursor: pointer;
+  }
+
+  #sessionSection .more[hidden] { display: none; }
+  #sessionSection .more:hover { color: var(--text); border-color: var(--faint); }
+  #sessionSection .more:focus-visible { outline: 2px solid var(--faint); outline-offset: 1px; }
 
   .card h3 {
     margin: 0 0 10px;
@@ -944,9 +1320,8 @@
 
   /* The intermediate band: the page scrolls normally and the dashboard is
      arranged in two columns, the limits on top and the panels side by side
-     below. It also covers a wide desktop window that is too short for the
-     fullscreen layout. */
-  @media (min-width: 700px) and (max-width: 1099px), (min-width: 1100px) and (max-height: 679px) {
+     below. */
+  @media (min-width: 700px) and (max-width: 1099px) {
     /* The limits fill the width in a fluid grid. The track is capped so a
        single card does not stretch across the whole screen. */
     #quotas {
@@ -954,30 +1329,49 @@
     }
 
     /* Below the limits: the 5h block and the chart on the left, the window
-       panel on the right. */
+       panel on the right, the heatmap and the projects under them and the
+       sessions across the whole width. */
     .wrap {
       display: grid;
       grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
       grid-template-areas:
         "header header"
+        "kpis kpis"
         "quotas quotas"
         "left window"
+        "heatrow heatrow"
+        "sessions sessions"
         "footer footer";
       gap: 14px;
       align-items: start;
     }
 
     header { grid-area: header; }
+    #kpiSection { grid-area: kpis; }
     #quotaSection { grid-area: quotas; }
     .leftcol { grid-area: left; }
     #windowSection { grid-area: window; }
+    .heatrow { grid-area: heatrow; }
+    #sessionSection { grid-area: sessions; }
     .credit { grid-area: footer; }
+
+    /* The heatmap and the projects share a row of their own. */
+    .heatrow {
+      display: grid;
+      grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+      gap: 14px;
+      align-items: start;
+      min-width: 0;
+    }
 
     /* The panels become cards of their own. */
     #quotaSection,
     #blocksSection,
     #chartSection,
-    #windowSection {
+    #heatSection,
+    #projectSection,
+    #windowSection,
+    #sessionSection {
       background: var(--panel);
       border: 1px solid var(--border);
       border-radius: 22px;
@@ -1068,7 +1462,7 @@
 
     /* The navigation never wraps its labels into two lines. */
     .header-nav a,
-    .header-nav button {
+    .header-nav button:not(.theme-toggle) {
       white-space: nowrap;
       flex: none;
     }
@@ -1076,8 +1470,8 @@
     /* One column: limits, window, 5h block and chart. */
     .cards { grid-template-columns: 1fr; }
 
-    /* The reading order on a small screen is: the limits, the window
-       panel, the 5h block and the chart. */
+    /* The reading order on a small screen is: the KPIs, the limits, the
+       window panel, the sessions, the 5h block and the chart. */
     .wrap {
       display: flex;
       flex-direction: column;
@@ -1087,15 +1481,19 @@
     /* The gap of the column replaces the margin of the sections. */
     .wrap > section,
     .wrap > .leftcol,
+    .wrap > .heatrow,
     .wrap > header,
     .wrap > footer.credit {
       margin-bottom: 0;
     }
 
-    .wrap > #quotaSection { order: 1; }
-    .wrap > #windowSection { order: 2; }
-    .wrap > .leftcol { order: 3; }
-    .wrap > footer.credit { order: 4; }
+    .wrap > #kpiSection { order: 1; }
+    .wrap > #quotaSection { order: 2; }
+    .wrap > #windowSection { order: 3; }
+    .wrap > #sessionSection { order: 4; }
+    .wrap > .leftcol { order: 5; }
+    .wrap > .heatrow { order: 6; }
+    .wrap > footer.credit { order: 7; }
 
     /* The 5h block comes before the chart inside the left column. */
     .leftcol {
@@ -1111,6 +1509,14 @@
     .leftcol > #blocksSection { order: 1; }
     .leftcol > #chartSection { order: 2; }
 
+    /* The heatmap and the projects stack in a single column. */
+    .heatrow {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      min-width: 0;
+    }
+
     /* The totals are readable in two columns. */
     .totals {
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1125,6 +1531,22 @@
       grid-template-columns: repeat(2, minmax(0, 1fr));
       grid-template-rows: auto auto auto auto;
       grid-auto-flow: row;
+    }
+
+    /* The heatmap and the projects are panels of their own. */
+    #heatSection,
+    #projectSection {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      box-shadow: var(--shadow);
+      padding: 12px;
+      margin: 0;
+      min-width: 0;
+    }
+
+    #projectSection .card {
+      padding: 0;
     }
 
     /* The table scrolls inside its own container and the first column
@@ -1182,491 +1604,210 @@
     }
   }
 
-  /* ------------------------------------------------- fullscreen dashboard */
-
-  /* Desktop: the dashboard fills the viewport, no page scroll. */
-  @media (min-width: 1100px) and (min-height: 680px) {
-    html, body {
-      height: 100%;
-      overflow: hidden;
+  /* The KPI row follows the ponytail board: four columns on a wide screen,
+     two on a medium one and a single column on a phone. */
+  @media (max-width: 1360px) {
+    #kpiSection .kpis {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
+  }
 
+  @media (max-width: 520px) {
+    #kpiSection .kpis {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  /* --------------------------------------------------- desktop dashboard */
+
+  /* Above 1100px the dashboard is a board that scrolls with the page: the
+     panels keep their natural height and nothing is clipped. The grid has
+     three bands below the header: the KPIs, the quotas, then the panels in
+     two columns, the heatmap next to the projects and the sessions across
+     the whole width. */
+  @media (min-width: 1100px) {
+    /* The board is centered and never wider than the screen. */
     .wrap {
       width: 100%;
-      height: 100vh;
-      height: 100dvh;
-      max-width: none;
-      margin: 0;
-      padding: 14px 18px;
-      padding-left: max(18px, env(safe-area-inset-left));
-      padding-right: max(18px, env(safe-area-inset-right));
-      padding-bottom: max(14px, env(safe-area-inset-bottom));
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 16px 20px;
+      padding-left: max(20px, env(safe-area-inset-left));
+      padding-right: max(20px, env(safe-area-inset-right));
+      padding-bottom: max(20px, env(safe-area-inset-bottom));
       box-sizing: border-box;
-      overflow: hidden;
       display: grid;
+      gap: 14px;
+      align-items: start;
+
+      /* The band of the panels: the 5h block and the chart on the left, the
+         window on the right. */
       grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
-      grid-template-rows: auto auto minmax(0, 1fr) auto;
       grid-template-areas:
         "header header"
+        "kpis kpis"
         "quotas quotas"
         "left window"
+        "heatrow heatrow"
+        "sessions sessions"
         "footer footer";
-      gap: 10px;
     }
 
     header {
-      grid-area: header;
       margin: 0;
-      flex-wrap: nowrap;
-      gap: 10px 16px;
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 22px;
-      box-shadow: var(--shadow);
-      padding: 8px 14px;
-      min-height: 0;
       min-width: 0;
+      grid-area: header;
     }
 
     h1 {
-      font-size: 22px;
+      font-size: 24px;
       white-space: nowrap;
     }
 
-    .brand {
-      flex: 0 1 auto;
-      min-width: 0;
-    }
-
-    .status {
-      font-size: 12px;
-      white-space: nowrap;
-    }
-
-    /* Errors live in the header row, right-aligned as a compact warning. */
-    header #errorsSection {
-      order: 3;
-      margin: 0;
-      flex: 1 1 auto;
-      min-width: 0;
-      display: flex;
-      justify-content: flex-end;
-      align-items: center;
-    }
-    header #errorsSection[hidden] { display: none; }
-
-    .errors {
-      max-width: 100%;
-      max-height: 42px;
-      overflow: auto;
-      padding: 4px 10px;
-      border-left-width: 3px;
-      font-size: 12px;
-    }
-    .errors ul {
-      padding-left: 16px;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 2px 18px;
-    }
-    .errors li {
-      font-size: 12px;
-      white-space: nowrap;
-    }
-
-    /* Each section becomes a panel. */
+    /* The panels become cards of their own. */
     #quotaSection,
     #blocksSection,
     #chartSection,
-    #windowSection {
+    #heatSection,
+    #projectSection,
+    #windowSection,
+    #sessionSection {
       background: var(--panel);
       border: 1px solid var(--border);
       border-radius: 22px;
       box-shadow: var(--shadow);
-      padding: 12px;
+      padding: 14px;
       margin: 0;
-      min-height: 0;
+      min-width: 0;
     }
 
-    #quotaSection {
-      grid-area: quotas;
-      display: flex;
-      flex-direction: column;
-      min-height: 0;
-    }
-
-    h2 {
-      font-size: 11px;
-      margin: 0 0 8px;
-      letter-spacing: 0.08em;
-    }
-
-    /* Quotas span the full width; each card shows its windows side by side.
-       The track is capped so a single card does not stretch across the
-       whole screen, and the cards are packed to the left. */
+    /* The limits fill the width in a fluid grid. The track is capped so a
+       single card does not stretch across the whole screen. */
     #quotas {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(280px, 460px));
-      justify-content: start;
-      gap: 10px;
-      max-height: 36vh;
-      overflow-y: auto;
-      min-height: 0;
-      padding-right: 3px;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
     }
 
-    .quota {
-      padding: 8px 11px;
-      gap: 5px;
-      background: var(--panel-alt);
-      border-color: var(--border);
-      box-shadow: none;
-      container-type: inline-size;
-    }
-
-    /* The provider name and the age share the first row; the chips take
-       the second one. */
-    .quota .qhead {
-      gap: 4px 10px;
-    }
-
-    .quota .qhead > h3 {
-      font-size: 13px;
-      margin: 0;
-      min-width: 0;
-    }
-
-    .quota .qhead > .qmeta {
-      font-size: 10.5px;
-      white-space: nowrap;
-      flex: none;
-    }
-
-    .quota .qchips {
-      gap: 4px 5px;
-    }
-
-    .quota .qchips > .badge,
-    .quota .qchips > .plan {
-      font-size: 10px;
-      padding: 1px 7px;
-    }
-
-    /* The quota windows live in a two column grid inside each card. */
-    .quota .qwindows {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 10px;
-    }
-
-    .qwin {
-      gap: 1px;
-      min-width: 0;
-      display: grid;
-      grid-template-columns: minmax(0, auto) minmax(0, 1fr);
-      align-items: baseline;
-      column-gap: 8px;
-    }
-
-    .qwin + .qwin {
-      border-top: 0;
-      padding-top: 0;
-    }
-
-    /* Window name on the left, remaining percentage right after it.
-       The name gives way first when the column is narrow. */
-    .qwinhead {
-      grid-column: 1;
-      grid-row: 1;
-      font-size: 11px;
-      align-items: baseline;
-      min-width: 0;
-      overflow: hidden;
-    }
-
-    .qwinhead .wname {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .qleft {
-      grid-column: 2;
-      grid-row: 1;
-      font-size: 20px;
-      line-height: 1.1;
-      white-space: nowrap;
-      min-width: 0;
-    }
-
-    /* Narrow quota cards shrink the percentage so it never overflows. */
-    @container (max-width: 430px) {
-      .qleft { font-size: 17px; }
-    }
-
-    @container (max-width: 350px) {
-      .qleft { font-size: 15px; }
-    }
-
-    .qwin > .bar {
-      grid-column: 1 / -1;
-      grid-row: 2;
-    }
-
-    /* The used/limit and the reset countdown share the last row. */
-    .qwin > .qmeta {
-      font-size: 10.5px;
-      line-height: 1.35;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      min-width: 0;
-    }
-
-    .qwin > .qfoot {
-      grid-column: 1 / -1;
-      grid-row: 3;
-      display: flex;
-      justify-content: space-between;
-      gap: 10px;
-      font-size: 10.5px;
-      line-height: 1.35;
-      min-width: 0;
-    }
-
-    .qwin > .qfoot > .qmeta {
-      min-width: 0;
-    }
-
-    .qmeta {
-      font-size: 10.5px;
-      line-height: 1.35;
-    }
-
-    .quota .qempty,
-    .quota .qwarn,
-    .quota .qstale,
-    .quota > .qmeta {
-      font-size: 11px;
-    }
-
-    /* Left column: blocks on top, chart below. */
-    .leftcol {
-      grid-area: left;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      min-height: 0;
-    }
-
-    #blocksSection {
-      display: flex;
-      flex-direction: column;
-      min-height: 0;
-      overflow: hidden;
-      flex: 0 1 auto;
-      max-height: 46%;
-    }
-
-    #blocks {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 8px;
-      overflow-y: auto;
-      min-height: 0;
-    }
-
-    #blocks .card {
-      padding: 8px 10px;
-      background: var(--panel-alt);
-      border-color: transparent;
-      border-radius: 14px;
-      box-shadow: none;
-      display: grid;
-      grid-template-columns: 1fr auto;
-      grid-template-areas:
-        "name total"
-        "kv kv";
-      align-items: baseline;
-      gap: 2px 10px;
-    }
-
-    #blocks .card h3 {
-      grid-area: name;
-      margin: 0;
-      font-size: 12.5px;
-      justify-content: flex-start;
-      min-width: 0;
-    }
-
-    /* Name and total share the first line. */
-    #blocks .big {
-      grid-area: total;
-      font-size: 17px;
-      margin: 0;
-      white-space: nowrap;
-    }
-
-    /* Four columns, each with the label above its value. */
-    #blocks .kv {
-      grid-area: kv;
-      display: grid;
+    /* The KPI row keeps the four cards of the board. */
+    #kpiSection .kpis {
       grid-template-columns: repeat(4, minmax(0, 1fr));
-      grid-template-rows: auto auto;
-      grid-auto-flow: column;
-      gap: 0 10px;
-      margin: 0;
-      font-size: 11.5px;
     }
 
-    /* The time/usage bars flow under the key/values, one row each. */
-    #blocks .barlabel {
-      grid-column: 1 / -1;
-      font-size: 10px;
-      line-height: 1.3;
-      margin-top: 4px;
-    }
+    #kpiSection { grid-area: kpis; }
+    #quotaSection { grid-area: quotas; }
+    #sessionSection { grid-area: sessions; }
+    .credit { grid-area: footer; }
 
-    #blocks .bar {
-      grid-column: 1 / -1;
-      height: 4px;
-      margin-top: 2px;
-    }
-
-    #blocks .kv dt {
-      grid-row: 1;
-      font-size: 10.5px;
-    }
-
-    #blocks .kv dd {
-      grid-row: 2;
-      text-align: left;
-      font-weight: 600;
-      overflow-wrap: anywhere;
-    }
-
-    /* Chart fills the remaining space of the left column. */
-    #chartSection {
-      display: flex;
-      flex-direction: column;
-      flex: 1 1 auto;
-      min-height: 180px;
-    }
-
-    .chart {
-      display: flex;
-      flex-direction: column;
-      flex: 1 1 auto;
-      min-height: 0;
-      padding: 0;
-      border: 0;
-      border-radius: 0;
-      box-shadow: none;
-      background: transparent;
-      /* The tooltip of the hover may be taller than the drawing area, so
-         it is never clipped here. */
-      overflow: visible;
-    }
-
-    #chart {
-      flex: 1 1 auto;
-      min-height: 0;
-    }
-
-    #chart svg {
-      display: block;
-      width: 100%;
-      height: 100%;
-      min-width: 0;
-    }
-
-    .legend {
-      flex: none;
-      flex-wrap: nowrap;
-      overflow-x: auto;
-      gap: 6px;
-      margin-top: 6px;
-      font-size: 11.5px;
-    }
-
-    .legend .chip {
-      font-size: 11.5px;
-      white-space: nowrap;
-    }
-
-    /* Window panel: tabs, totals, then a scrollable table. */
+    /* The window panel keeps the tabs, the totals and the table together. */
     #windowSection {
       grid-area: window;
       display: flex;
       flex-direction: column;
-      min-height: 0;
+      min-width: 0;
     }
 
     #windowSection .tabs {
       align-self: flex-start;
       flex: none;
-      padding: 2px;
     }
 
-    #windowSection .tabs button {
-      font-size: 11.5px;
-      padding: 4px 10px;
-    }
-
+    /* The totals are laid out in three columns. */
     .totals {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-auto-flow: row;
+      grid-auto-columns: auto;
       flex: none;
-      grid-template-columns: none;
-      grid-auto-flow: column;
-      grid-auto-columns: minmax(0, 1fr);
-      margin: 8px 0;
-      border-radius: 14px;
     }
 
-    .totals > div {
-      padding: 6px 9px;
-    }
-
-    .totals .lbl {
-      font-size: 10px;
-    }
-
-    .totals .val {
-      font-size: 15px;
-    }
-
+    /* The table scrolls sideways inside its own container. */
     .tablewrap {
-      flex: 1 1 auto;
-      min-height: 0;
-      overflow: auto;
-      border-radius: 14px;
-      box-shadow: none;
+      overflow-x: auto;
+      overflow-y: hidden;
+      -webkit-overflow-scrolling: touch;
     }
 
-    table {
-      min-width: 620px;
+    /* The chart keeps a readable height. */
+    #chart { height: 240px; }
+    .chart { padding: 12px 10px 8px; }
+
+    /* The key/values of the 5h block use two columns. */
+    #blocks .kv {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-rows: auto auto auto auto;
+      grid-auto-flow: row;
+    }
+
+    /* The footer clears the home indicator. */
+    .credit {
+      padding-bottom: max(8px, env(safe-area-inset-bottom));
+    }
+
+    /* The left column stacks the 5h block and the chart. */
+    .leftcol {
+      grid-area: left;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      min-width: 0;
+    }
+
+    .leftcol > section {
+      margin: 0;
+    }
+
+    /* The heatmap and the projects share a row of their own, with the
+       honeycomb taking the larger part of it. */
+    .heatrow {
+      grid-area: heatrow;
+      display: grid;
+      grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+      gap: 14px;
+      align-items: start;
+      min-width: 0;
+    }
+
+    #heatSection,
+    #projectSection {
+      align-self: start;
+      min-width: 0;
+    }
+
+    /* The sessions panel: the header with the search, then the table that
+       scrolls sideways. */
+    #sessionSection {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    #sessionSection .list {
+      padding: 4px 0 0;
+    }
+
+    #sessionSection .list-head {
+      padding: 0 8px 12px;
+    }
+
+    #sessionSection .table-wrap {
+      overflow-x: auto;
+      overflow-y: hidden;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    #sessionSection table {
       font-size: 12px;
+      min-width: 620px;
     }
 
-    th, td {
+    #sessionSection th,
+    #sessionSection td {
       padding: 6px 9px;
     }
 
-    th {
-      position: sticky;
-      top: 0;
-      z-index: 1;
-      background: var(--panel-alt);
-    }
-
-    /* The credit is the last row of the grid: it never scrolls. */
-    .credit {
-      grid-area: footer;
+    #sessionSection .more {
+      width: calc(100% - 16px);
+      margin: 8px 8px 2px;
+      padding: 6px 12px;
       font-size: 12px;
-      line-height: 18px;
-      height: 18px;
-      padding: 0;
-      margin: 0;
-      flex: none;
     }
   }
 </style>
@@ -1712,6 +1853,11 @@
     </nav>
   </header>
 
+  <section id="kpiSection" hidden>
+    <h2>Últimos 7 dias</h2>
+    <div class="kpis" id="kpis"></div>
+  </section>
+
   <section id="quotaSection">
     <h2>Limites do plano</h2>
     <div class="cards" id="quotas"></div>
@@ -1730,6 +1876,23 @@
       <div class="chart">
         <div id="chart"></div>
         <div class="legend" id="legend"></div>
+      </div>
+    </section>
+  </div>
+
+  <div class="heatrow">
+    <section id="heatSection" hidden>
+      <h2>Atividade — 12 semanas</h2>
+      <div class="heat">
+        <p class="sub muted" id="heatSub"></p>
+        <svg id="heat" role="img" aria-label="Atividade diária de tokens nas últimas 12 semanas"></svg>
+      </div>
+    </section>
+
+    <section id="projectSection" hidden>
+      <h2>Projetos</h2>
+      <div class="card">
+        <div class="plist" id="projectList"></div>
       </div>
     </section>
   </div>
@@ -1757,6 +1920,38 @@
       </table>
     </div>
     <p class="empty" id="rowsEmpty" hidden>nenhum uso registrado nesta janela</p>
+  </section>
+
+  <section id="sessionSection" hidden>
+    <div class="card list">
+      <div class="list-head">
+        <h3>Sessões <span class="n" id="sessionCount">0</span></h3>
+        <label class="search" for="sessionSearch">
+          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+            <circle cx="7" cy="7" r="4.5"></circle>
+            <path d="M10.5 10.5 14 14"></path>
+          </svg>
+          <input id="sessionSearch" type="search" placeholder="projeto, modelo ou provedor" autocomplete="off" spellcheck="false">
+        </label>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Projeto</th>
+              <th scope="col">Provedor</th>
+              <th scope="col">Início</th>
+              <th scope="col" class="r">Duração</th>
+              <th scope="col" class="r">Turnos</th>
+              <th scope="col" class="r">Tokens</th>
+              <th scope="col" class="r">Custo</th>
+            </tr>
+          </thead>
+          <tbody id="sessionRows"></tbody>
+        </table>
+      </div>
+      <button type="button" class="more" id="sessionMore" hidden>Mostrar mais</button>
+    </div>
   </section>
 
   <footer class="credit">
@@ -2092,7 +2287,11 @@
     windowName: "5h",
     backoff: 1000,
     socket: null,
-    timer: null
+    timer: null,
+    // sessionQuery is the text typed in the search of the sessions table,
+    // and sessionLimit is the number of rows already shown.
+    sessionQuery: "",
+    sessionLimit: 50
   };
 
   // quotaCountdowns holds the reset countdowns currently on screen, so the
@@ -2111,6 +2310,18 @@
     rowsEmpty: document.getElementById("rowsEmpty"),
     quotas: document.getElementById("quotas"),
     quotasEmpty: document.getElementById("quotasEmpty"),
+    kpiSection: document.getElementById("kpiSection"),
+    kpis: document.getElementById("kpis"),
+    heatSection: document.getElementById("heatSection"),
+    heat: document.getElementById("heat"),
+    heatSub: document.getElementById("heatSub"),
+    projectSection: document.getElementById("projectSection"),
+    projectList: document.getElementById("projectList"),
+    sessionSection: document.getElementById("sessionSection"),
+    sessionRows: document.getElementById("sessionRows"),
+    sessionCount: document.getElementById("sessionCount"),
+    sessionSearch: document.getElementById("sessionSearch"),
+    sessionMore: document.getElementById("sessionMore"),
     blocks: document.getElementById("blocks"),
     blocksEmpty: document.getElementById("blocksEmpty"),
     chart: document.getElementById("chart"),
@@ -2805,6 +3016,699 @@
     var win = currentWindow();
     renderTotals(win ? win.sum : null);
     renderRows(win);
+  }
+
+  // -------------------------------------------------------------- kpis
+
+  // The KPI row and the heatmap are built from the daily buckets of the
+  // snapshot. A server older than the daily buckets has none of them, and
+  // both sections stay hidden until the data shows up.
+
+  // KPI_DEFS describes the four cards of the row: the label, the field of
+  // the daily bucket and the two colors of its sparkline.
+  var KPI_DEFS = [
+    { key: "tokens", label: "Tokens", field: "total", colors: ["#ff6fb5", "#b26bff"] },
+    { key: "cost", label: "Custo", field: "cost", colors: ["#ffd166", "#ff8a3d"] },
+    { key: "requests", label: "Requisições", field: "requests", colors: ["#4cc3ff", "#7c8cff"] },
+    { key: "cache", label: "Cache", field: "cache", colors: ["#2fd4c0", "#5fe08a"] }
+  ];
+
+  var KPI_DAYS = 7;
+  var SPARK_DAYS = 30;
+
+  // dailyBuckets returns the daily buckets of the snapshot, oldest first.
+  //
+  // An empty list is returned when the server does not send them, so the
+  // callers can simply hide their sections.
+  function dailyBuckets() {
+    var snap = state.snapshot;
+    var daily = (snap && snap.daily) || [];
+    if (!Array.isArray(daily)) return [];
+    return daily.filter(function (day) {
+      return day && typeof day === "object";
+    });
+  }
+
+  // avg smooths a series with a moving average of the given span.
+  //
+  // It is used by the sparkline to keep a long series readable.
+  function avg(values, span) {
+    if (values.length <= span) return values.slice();
+    var out = [];
+    for (var i = 0; i < values.length; i++) {
+      var sum = 0;
+      var count = 0;
+      for (var j = Math.max(0, i - span + 1); j <= i; j++) {
+        sum += values[j];
+        count++;
+      }
+      out.push(sum / count);
+    }
+    return out;
+  }
+
+  // cacheRate returns the share of the cache in the tokens of a day.
+  //
+  // The rate is the cache read over the tokens that went through the model,
+  // input, cache read and cache write.
+  function cacheRate(day) {
+    var input = Number(day.input) || 0;
+    var read = Number(day.cache_read) || 0;
+    var write = Number(day.cache_write) || 0;
+    var total = input + read + write;
+    if (total <= 0) return 0;
+    return (read / total) * 100;
+  }
+
+  // sumField totals a field over a range of daily buckets.
+  function sumField(days, field) {
+    var sum = 0;
+    for (var i = 0; i < days.length; i++) {
+      var value = Number(days[i][field]) || 0;
+      sum += value;
+    }
+    return sum;
+  }
+
+  // formatMoney renders a cost in dollars with two decimal places.
+  function formatMoney(v) {
+    v = Number(v) || 0;
+    return "US$ " + v.toFixed(2);
+  }
+
+  // formatPercentPt renders a percentage with one decimal place, using the
+  // comma as the decimal separator of the Portuguese locale.
+  //
+  // It is the KPI version of the percentage: the quota panels have their
+  // own formatPercent, which keeps the whole numbers short.
+  function formatPercentPt(v) {
+    v = Number(v) || 0;
+    return v.toFixed(1).replace(".", ",") + "%";
+  }
+
+  // sparkline draws the small chart of a KPI card.
+  //
+  // It is the sparkline of the ponytail board: a smooth line with the
+  // gradient of the card and a soft glow underneath.
+  function sparkline(values, id, colors) {
+    var W = 300;
+    var H = 58;
+    var svg = svgEl("svg", {
+      viewBox: "0 0 300 58",
+      preserveAspectRatio: "none",
+      "class": "spark",
+      "aria-hidden": "true"
+    });
+
+    var vals = values.length > 14 ? avg(values, 2) : values;
+    var max = vals.length ? Math.max.apply(null, vals.concat([0])) : 0;
+    if (max <= 0) return svg;
+
+    var defs = svgEl("defs");
+    svg.appendChild(defs);
+    gradient(document, defs, "llmw-kpi-l" + id, W, 0, [[0, colors[0], 1], [1, colors[1], 1]]);
+    gradient(document, defs, "llmw-kpi-f" + id, 0, H, [[0, colors[1], 0.38], [1, colors[0], 0]]);
+    blur(document, defs, "llmw-kpi-g" + id, 5);
+
+    var line = smooth(vals.map(function (v, j) {
+      return [j * W / Math.max(1, vals.length - 1), H - 6 - v / max * (H - 16)];
+    }));
+
+    svg.appendChild(svgEl("path", {
+      d: line + "L" + W + "," + H + "L0," + H + "Z",
+      fill: "url(#llmw-kpi-f" + id + ")"
+    }));
+    svg.appendChild(svgEl("path", {
+      d: line,
+      fill: "none",
+      stroke: "url(#llmw-kpi-l" + id + ")",
+      "stroke-width": 2,
+      filter: "url(#llmw-kpi-g" + id + ")",
+      "class": "glow-line",
+      "vector-effect": "non-scaling-stroke"
+    }));
+    svg.appendChild(svgEl("path", {
+      d: line,
+      fill: "none",
+      stroke: "url(#llmw-kpi-l" + id + ")",
+      "stroke-width": 1.8,
+      "vector-effect": "non-scaling-stroke"
+    }));
+
+    return svg;
+  }
+
+  // kpiValue returns the value and the delta of a KPI over the given days.
+  function kpiValue(days, def) {
+    if (def.key === "cache") {
+      var read = sumField(days, "cache_read");
+      var input = sumField(days, "input");
+      var write = sumField(days, "cache_write");
+      var total = input + read + write;
+      return total > 0 ? (read / total) * 100 : 0;
+    }
+    return sumField(days, def.field);
+  }
+
+  // kpiFormat renders the value of a KPI in its own unit.
+  function kpiFormat(key, value) {
+    if (key === "cost") return formatMoney(value);
+    if (key === "cache") return formatPercentPt(value);
+    return formatCompact(value);
+  }
+
+  // The cost is not reported by every provider: the collectors of the local
+  // tools do not price the tokens, so the period may have no cost at all.
+  //
+  // The KPI of the cost then shows a dash and explains that the number is
+  // not available, instead of an amount of zero that looks like a real
+  // measurement.
+  var COST_UNAVAILABLE_NOTE = "custo indisponível para estes provedores";
+
+  // renderKpis draws the row of the four KPI cards.
+  function renderKpis() {
+    var section = refs.kpiSection;
+    if (!section || !refs.kpis) return;
+
+    var daily = dailyBuckets();
+    if (!daily.length) {
+      section.hidden = true;
+      clear(refs.kpis);
+      return;
+    }
+    section.hidden = false;
+
+    var cur = daily.slice(Math.max(0, daily.length - KPI_DAYS));
+    var prev = daily.slice(Math.max(0, daily.length - KPI_DAYS * 2), Math.max(0, daily.length - KPI_DAYS));
+    var spark = daily.slice(Math.max(0, daily.length - SPARK_DAYS));
+
+    clear(refs.kpis);
+
+    KPI_DEFS.forEach(function (def, i) {
+      var value = kpiValue(cur, def);
+      var previous = prev.length ? kpiValue(prev, def) : 0;
+
+      var card = el("div", "card kpi");
+      card.style.setProperty("--k", def.colors[0]);
+
+      // The sparkline is drawn from the series of the last thirty days.
+      var values = spark.map(function (day) {
+        return def.key === "cache" ? cacheRate(day) : (Number(day[def.field]) || 0);
+      });
+
+      // A provider that does not price the tokens leaves the cost of both
+      // periods at zero: the card says so instead of showing a fake zero.
+      var costMissing = def.key === "cost" && value <= 0 && previous <= 0;
+
+      var big = el("div", "kpi-value num", costMissing ? "—" : kpiFormat(def.key, value));
+      card.appendChild(el("div", "kpi-label", def.label));
+
+      // The delta only makes sense when the period before had some use.
+      if (!costMissing && previous > 0) {
+        var delta;
+        if (def.key === "cache") {
+          // The cache is a rate, so the delta is in percentage points.
+          var points = value - previous;
+          delta = el("span", "delta " + (points >= 0 ? "up" : "down"),
+            (points >= 0 ? "↑" : "↓") + formatPercentPt(Math.abs(points)).replace("%", " pp"));
+        } else {
+          var pct = Math.round((value - previous) / previous * 100);
+          delta = el("span", "delta " + (pct >= 0 ? "up" : "down"),
+            (pct >= 0 ? "↑" : "↓") + Math.abs(pct) + "%");
+        }
+        big.appendChild(delta);
+      }
+      card.appendChild(big);
+
+      card.appendChild(el("div", "kpi-note", costMissing
+        ? COST_UNAVAILABLE_NOTE
+        : (previous > 0 ? "últimos 7 dias vs 7 anteriores" : "últimos 7 dias")));
+
+      // The sparkline only appears when the series has something to show:
+      // an empty chart of a missing measurement is just noise.
+      var hasValues = values.some(function (v) { return v > 0; });
+      if (hasValues) {
+        card.appendChild(sparkline(values, i, def.colors));
+      }
+
+      refs.kpis.appendChild(card);
+    });
+  }
+
+  // --------------------------------------------------------------- heatmap
+
+  // HEAT is the ramp of the honeycomb, from the least to the most busy day.
+  var HEAT = [
+    [0, [58, 48, 120]],
+    [0.4, [150, 45, 112]],
+    [0.65, [235, 72, 58]],
+    [0.85, [255, 140, 60]],
+    [1, [255, 214, 102]]
+  ];
+
+  // heatColor maps a ratio of the peak to a color of the ramp.
+  function heatColor(a) {
+    for (var i = 1; i < HEAT.length; i++) {
+      if (a <= HEAT[i][0]) {
+        var lo = HEAT[i - 1];
+        var hi = HEAT[i];
+        var t = (a - lo[0]) / (hi[0] - lo[0]);
+        return "rgb(" + lo[1].map(function (c, j) {
+          return Math.round(c + (hi[1][j] - c) * t);
+        }).join(",") + ")";
+      }
+    }
+    return "rgb(255,214,102)";
+  }
+
+  // hex draws the outline of a hexagon centered on the given point.
+  function hex(cx, cy, r) {
+    var d = "";
+    for (var k = 0; k < 6; k++) {
+      var a = Math.PI / 3 * k - Math.PI / 2;
+      d += (k ? "L" : "M") + (cx + r * Math.cos(a)).toFixed(1) + "," + (cy + r * Math.sin(a)).toFixed(1);
+    }
+    return d + "Z";
+  }
+
+  // DAY_LABELS are the weekdays shown on the left of the honeycomb.
+  var DAY_LABELS = ["Seg", "Qua", "Sex"];
+
+  // renderHeat draws the honeycomb of the last twelve weeks.
+  //
+  // There is a column per week and a row per weekday, and the color of a
+  // cell is the number of tokens of the day.
+  function renderHeat() {
+    var section = refs.heatSection;
+    if (!section || !refs.heat) return;
+
+    var daily = dailyBuckets();
+    if (!daily.length) {
+      section.hidden = true;
+      clear(refs.heat);
+      if (refs.heatSub) refs.heatSub.textContent = "";
+      return;
+    }
+    section.hidden = false;
+
+    // The heatmap always covers the last twelve weeks, so the older days
+    // are dropped when the server sends more of them.
+    var days = daily.slice(Math.max(0, daily.length - 84));
+    var values = days.map(function (day) {
+      return Number(day.total) || 0;
+    });
+    var max = values.length ? Math.max.apply(null, values.concat([0])) : 0;
+    var total = values.reduce(function (sum, value) { return sum + value; }, 0);
+
+    if (refs.heatSub) {
+      refs.heatSub.textContent = "Total de " + formatCompact(total) + " tokens em 12 semanas";
+    }
+
+    var svg = refs.heat;
+    clear(svg);
+
+    var r = 17;
+    var w = Math.sqrt(3) * r;
+    var left = 44;
+    var top = r + 2;
+
+    // The first day of the period may fall on any weekday, so the first
+    // column starts in the middle of the honeycomb.
+    var first = days[0] && days[0].date ? days[0].date : null;
+    var firstDow = first ? dayOfWeek(first) : 0;
+    var cols = Math.ceil((days.length + firstDow) / 7);
+
+    var defs = svgEl("defs");
+    svg.appendChild(defs);
+    blur(document, defs, "llmw-heat-glow", 6);
+
+    var cells = days.map(function (day, i) {
+      var pos = i + firstDow;
+      var row = pos % 7;
+      var value = values[i];
+      return {
+        date: day.date || "",
+        value: value,
+        ratio: max > 0 ? value / max : 0,
+        cx: left + Math.floor(pos / 7) * w + (row % 2 ? w / 2 : 0),
+        cy: top + row * r * 1.5
+      };
+    });
+
+    // The glow of the busiest cells is painted under the honeycomb.
+    cells.forEach(function (cell) {
+      if (cell.ratio > 0.6) {
+        svg.appendChild(svgEl("path", {
+          d: hex(cell.cx, cell.cy, r),
+          fill: heatColor(cell.ratio),
+          filter: "url(#llmw-heat-glow)",
+          "class": "glow-cell"
+        }));
+      }
+    });
+
+    cells.forEach(function (cell) {
+      var path = svgEl("path", cell.value
+        ? { d: hex(cell.cx, cell.cy, r - 2), fill: heatColor(cell.ratio) }
+        : { d: hex(cell.cx, cell.cy, r - 2), "class": "cell-empty" });
+      var title = svgEl("title");
+      title.textContent = shortDate(cell.date) + ": " + formatInt(cell.value) + " tokens";
+      path.appendChild(title);
+      svg.appendChild(path);
+    });
+
+    // The labels of the weekdays, on the left of the honeycomb.
+    DAY_LABELS.forEach(function (label, i) {
+      var text = svgEl("text", {
+        x: 0,
+        y: top + (1 + 2 * i) * r * 1.5 + 4,
+        "class": "day"
+      });
+      text.textContent = label;
+      svg.appendChild(text);
+    });
+
+    // The legend: the ramp from the least to the most busy day.
+    var right = left + cols * w + w / 2;
+    var ly = top + 6 * r * 1.5 + r + 20;
+    var end = right - 40;
+
+    var less = svgEl("text", {
+      x: end - 4 * 15 - 14,
+      y: ly + 4,
+      "text-anchor": "end",
+      "class": "day"
+    });
+    less.textContent = "Menos";
+    svg.appendChild(less);
+
+    [0.1, 0.3, 0.55, 0.8, 1].forEach(function (a, i) {
+      svg.appendChild(svgEl("path", {
+        d: hex(end - (4 - i) * 15, ly, 6.5),
+        fill: heatColor(a)
+      }));
+    });
+
+    var more = svgEl("text", {
+      x: right,
+      y: ly + 4,
+      "text-anchor": "end",
+      "class": "day"
+    });
+    more.textContent = "Mais";
+    svg.appendChild(more);
+
+    svg.setAttribute("viewBox", "0 0 " + Math.ceil(right + 2) + " " + Math.ceil(ly + 10));
+    svg.setAttribute("aria-label",
+      "Atividade diária de tokens nas últimas 12 semanas, " + formatInt(total) + " tokens no total");
+  }
+
+  // dayOfWeek returns the day of the week of a "YYYY-MM-DD" date, from 0
+  // (Sunday) to 6 (Saturday).
+  function dayOfWeek(date) {
+    var parts = String(date).split("-");
+    var year = Number(parts[0]);
+    var month = Number(parts[1]);
+    var day = Number(parts[2]);
+    if (!year || !month || !day) return 0;
+    var d = new Date(year, month - 1, day);
+    if (isNaN(d.getTime())) return 0;
+    return d.getDay();
+  }
+
+  // shortDate renders a "YYYY-MM-DD" date as "dd/mm".
+  function shortDate(date) {
+    var parts = String(date || "").split("-");
+    if (parts.length < 3) return String(date || "");
+    return parts[2] + "/" + parts[1];
+  }
+
+  // ------------------------------------------------------ projects and sessions
+
+  // The projects card and the sessions table are built from the daily
+  // buckets and from the sessions of the snapshot. A server older than
+  // them has none of them, and both sections stay hidden until the data
+  // shows up.
+
+  // PROJECT_DAYS is the period of the project card.
+  var PROJECT_DAYS = 30;
+  // PROJECT_TOP is the number of projects shown in the card.
+  var PROJECT_TOP = 8;
+  // SESSION_PAGE is the number of sessions shown before the "mostrar mais".
+  var SESSION_PAGE = 50;
+
+  // projectName returns the name of a project: the last part of its path.
+  function projectName(path) {
+    var value = String(path || "");
+    if (!value) return "";
+    var parts = value.split(/[\\/]/);
+    return parts[parts.length - 1] || value;
+  }
+
+  // projectTokens totals the tokens of every project of the last days.
+  //
+  // The daily buckets are the oldest first, so the last thirty ones are
+  // the ones of the period. The projects without a known path are not
+  // counted.
+  function projectTotals(days) {
+    var totals = {};
+    days.forEach(function (day) {
+      var map = (day && day.by_project) || {};
+      Object.keys(map).forEach(function (path) {
+        var tokens = Number(map[path]) || 0;
+        if (!path || tokens <= 0) return;
+        totals[path] = (totals[path] || 0) + tokens;
+      });
+    });
+    return totals;
+  }
+
+  // renderProjects draws the list of the busiest projects of the period.
+  function renderProjects() {
+    var section = refs.projectSection;
+    if (!section || !refs.projectList) return;
+
+    var daily = dailyBuckets();
+    if (!daily.length) {
+      // A server without the daily buckets has no projects at all.
+      section.hidden = true;
+      clear(refs.projectList);
+      return;
+    }
+    section.hidden = false;
+
+    var days = daily.slice(Math.max(0, daily.length - PROJECT_DAYS));
+    var totals = projectTotals(days);
+
+    var paths = Object.keys(totals);
+    paths.sort(function (a, b) {
+      if (totals[b] !== totals[a]) return totals[b] - totals[a];
+      return a.localeCompare(b);
+    });
+    paths = paths.slice(0, PROJECT_TOP);
+
+    var max = paths.length ? totals[paths[0]] : 1;
+
+    clear(refs.projectList);
+
+    if (!paths.length) {
+      refs.projectList.appendChild(el("p", "empty", "Nenhum projeto nos últimos 30 dias."));
+      return;
+    }
+
+    paths.forEach(function (path, index) {
+      var tokens = totals[path];
+      var color = PROVIDER_PALETTE[index % PROVIDER_PALETTE.length];
+
+      var row = el("div", "prow");
+      row.style.setProperty("--c", color);
+
+      var dot = el("span", "dot");
+      dot.style.setProperty("--c", color);
+      row.appendChild(dot);
+
+      var name = el("div", "pname", projectName(path));
+      name.title = path;
+      row.appendChild(name);
+
+      var bar = el("div", "bar pbar");
+      bar.style.setProperty("--c", color);
+      bar.style.width = Math.max(4, tokens / max * 100) + "%";
+      row.appendChild(bar);
+
+      var value = el("div", "pval", formatCompact(tokens));
+      value.title = formatInt(tokens) + " tokens";
+      row.appendChild(value);
+
+      refs.projectList.appendChild(row);
+    });
+  }
+
+  // sessionList returns the sessions of the snapshot, filtered by the
+  // search of the table.
+  //
+  // The search matches the project, the model and the provider, without
+  // paying attention to the case.
+  function sessionList() {
+    var snap = state.snapshot;
+    var sessions = (snap && snap.sessions) || [];
+    if (!Array.isArray(sessions)) return [];
+
+    var query = String(state.sessionQuery || "").trim().toLowerCase();
+    if (!query) return sessions;
+
+    return sessions.filter(function (session) {
+      var haystack = [
+        session.project || "",
+        session.model || "",
+        session.provider || ""
+      ].join(" ").toLowerCase();
+      return haystack.indexOf(query) >= 0;
+    });
+  }
+
+  // formatSessionStart renders the start of a session as "dd/mm HH:MM".
+  function formatSessionStart(value) {
+    var d = new Date(value);
+    if (isNaN(d.getTime())) return "—";
+    return pad(d.getDate()) + "/" + pad(d.getMonth() + 1) + " " + pad(d.getHours()) + ":" + pad(d.getMinutes());
+  }
+
+  // formatSessionDuration renders the length of a session.
+  //
+  // A session without a known end shows a dash.
+  function formatSessionDuration(session) {
+    var start = new Date(session.start).getTime();
+    var end = new Date(session.end).getTime();
+    if (!isFinite(start) || !isFinite(end)) return "—";
+    var ms = end - start;
+    if (!isFinite(ms) || ms <= 0) return "—";
+
+    var minutes = Math.floor(ms / 60000);
+    if (minutes < 1) return "<1m";
+    var h = Math.floor(minutes / 60);
+    var m = minutes % 60;
+    if (h > 0) return h + "h " + m + "m";
+    return m + "m";
+  }
+
+  // renderSessions draws the table of the sessions of the last thirty days.
+  //
+  // Only the body of the table is rebuilt, so the search keeps the focus
+  // and the text while the snapshot is refreshed.
+  function renderSessions() {
+    var section = refs.sessionSection;
+    if (!section || !refs.sessionRows) return;
+
+    var snap = state.snapshot;
+    var hasSessions = !!(snap && Array.isArray(snap.sessions));
+
+    if (!hasSessions) {
+      section.hidden = true;
+      clear(refs.sessionRows);
+      if (refs.sessionCount) refs.sessionCount.textContent = "0";
+      if (refs.sessionMore) refs.sessionMore.hidden = true;
+      return;
+    }
+    section.hidden = false;
+
+    var list = sessionList();
+    if (refs.sessionCount) refs.sessionCount.textContent = String(list.length);
+
+    var max = 0;
+    list.forEach(function (session) {
+      var tokens = Number(session.total) || 0;
+      if (tokens > max) max = tokens;
+    });
+
+    var shown = list.slice(0, state.sessionLimit);
+
+    clear(refs.sessionRows);
+
+    if (!shown.length) {
+      var tr = el("tr");
+      var td = el("td", "empty", state.sessionQuery.trim()
+        ? "Nenhuma sessão encontrada."
+        : "Nenhuma sessão nos últimos 30 dias.");
+      td.colSpan = 7;
+      tr.appendChild(td);
+      refs.sessionRows.appendChild(tr);
+    }
+
+    shown.forEach(function (session) {
+      var tr = el("tr");
+      var tokens = Number(session.total) || 0;
+      var color = colorFor(session.provider);
+
+      // The project, with the model on the second line.
+      var name = el("td", "name");
+      var task = el("div", "task", projectName(session.project) || "—");
+      task.title = session.project || "";
+      name.appendChild(task);
+      name.appendChild(el("div", "sub", session.model || "—"));
+      tr.appendChild(name);
+
+      // The provider, with its own color.
+      var prov = el("td");
+      var provider = el("span", "provider");
+      var dot = el("span", "dot");
+      dot.style.setProperty("--c", color);
+      provider.appendChild(dot);
+      provider.appendChild(document.createTextNode(session.provider || "—"));
+      prov.appendChild(provider);
+      tr.appendChild(prov);
+
+      // The start of the session, in the local time.
+      tr.appendChild(el("td", null, formatSessionStart(session.start)));
+      tr.appendChild(el("td", "r", formatSessionDuration(session)));
+
+      var turns = el("td", "r", formatInt(session.requests));
+      tr.appendChild(turns);
+
+      // The tokens, with a bar of their own.
+      var tdTokens = el("td", "r");
+      tdTokens.appendChild(el("span", null, formatCompact(tokens)));
+      tdTokens.title = formatInt(tokens) + " tokens";
+      var bar = el("div", "bar sbar");
+      bar.style.setProperty("--c", color);
+      var fill = el("i");
+      fill.style.width = (max > 0 ? Math.max(4, tokens / max * 100) : 0) + "%";
+      bar.appendChild(fill);
+      tdTokens.appendChild(bar);
+      tr.appendChild(tdTokens);
+
+      // The cost of the session.
+      var cost = Number(session.cost) || 0;
+      var tdCost = el("td", "r", cost > 0 ? formatMoney(cost) : "—");
+      tdCost.title = cost > 0 ? "US$ " + cost.toFixed(6) : "";
+      tr.appendChild(tdCost);
+
+      refs.sessionRows.appendChild(tr);
+    });
+
+    if (refs.sessionMore) {
+      refs.sessionMore.hidden = list.length <= state.sessionLimit;
+      refs.sessionMore.textContent = "Mostrar mais";
+    }
+  }
+
+  // bindSessions keeps the search of the table in the state and redraws
+  // the rows when the text changes.
+  function bindSessions() {
+    if (refs.sessionSearch) {
+      refs.sessionSearch.addEventListener("input", function () {
+        state.sessionQuery = refs.sessionSearch.value;
+        state.sessionLimit = SESSION_PAGE;
+        renderSessions();
+      });
+    }
+
+    if (refs.sessionMore) {
+      refs.sessionMore.addEventListener("click", function () {
+        state.sessionLimit += SESSION_PAGE;
+        renderSessions();
+      });
+    }
   }
 
   // ---------------------------------------------------------------- quotas
@@ -3656,6 +4560,10 @@
   function renderAll() {
     rebuildProviderColors(state.snapshot);
     renderWindow();
+    renderKpis();
+    renderHeat();
+    renderProjects();
+    renderSessions();
     renderQuotas();
     renderBlocks();
     renderChart();
@@ -3788,6 +4696,7 @@
   bindLogout();
   bindInstall();
   bindWidget();
+  bindSessions();
   bindUpdateLink();
   registerServiceWorker();
   renderWindow();

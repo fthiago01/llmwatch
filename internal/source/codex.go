@@ -18,7 +18,10 @@ const (
 	codexName = "codex"
 	// codexQuery selects the threads of the codex database that consumed
 	// tokens, using the millisecond timestamp when available.
-	codexQuery = `SELECT COALESCE(updated_at_ms, updated_at*1000), model_provider, COALESCE(model,''), tokens_used FROM threads WHERE tokens_used > 0`
+	//
+	// The thread id is the session identifier and the working directory is
+	// the project the thread belongs to.
+	codexQuery = `SELECT COALESCE(updated_at_ms, updated_at*1000), model_provider, COALESCE(model,''), tokens_used, id, COALESCE(cwd,'') FROM threads WHERE tokens_used > 0`
 )
 
 // Codex is a Source that reads the codex SQLite database, which keeps one row
@@ -84,8 +87,10 @@ func (c *Codex) Load(ctx context.Context) (recs []usage.Record, err error) {
 			provider   string
 			model      string
 			tokens     int64
+			session    string
+			project    string
 		)
-		if err := rows.Scan(&timeMillis, &provider, &model, &tokens); err != nil {
+		if err := rows.Scan(&timeMillis, &provider, &model, &tokens, &session, &project); err != nil {
 			return nil, fmt.Errorf("scan %s: %w", c.dbPath, err)
 		}
 
@@ -95,6 +100,8 @@ func (c *Codex) Load(ctx context.Context) (recs []usage.Record, err error) {
 			Model:    model,
 			Time:     time.UnixMilli(timeMillis),
 			Input:    tokens,
+			Session:  session,
+			Project:  project,
 		})
 	}
 	if err := rows.Err(); err != nil {

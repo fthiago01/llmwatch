@@ -2,6 +2,7 @@ package usage
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
 	"strings"
 	"testing"
@@ -246,6 +247,541 @@ func TestHourlyBuckets(t *testing.T) {
 	}
 }
 
+// dayIndex returns the index of the day with the given date.
+func dayIndex(t *testing.T, days []Day, date string) int {
+	t.Helper()
+	for i, d := range days {
+		if d.Date == date {
+			return i
+		}
+	}
+	t.Fatalf("day %q not found", date)
+	return -1
+}
+
+func TestDailyDays(t *testing.T) {
+	snap := Aggregate(nil, fixedNow, nil)
+	daily := snap.Daily
+
+	if len(daily) != 84 {
+		t.Fatalf("len(Daily) = %d, want 84", len(daily))
+	}
+	if want := fixedNow.Format("2006-01-02"); daily[83].Date != want {
+		t.Errorf("Daily[83].Date = %q, want %q (today)", daily[83].Date, want)
+	}
+	if want := fixedNow.AddDate(0, 0, -83).Format("2006-01-02"); daily[0].Date != want {
+		t.Errorf("Daily[0].Date = %q, want %q (oldest)", daily[0].Date, want)
+	}
+	for i := 1; i < len(daily); i++ {
+		if daily[i].Date <= daily[i-1].Date {
+			t.Errorf("Daily[%d].Date = %q, want after %q", i, daily[i].Date, daily[i-1].Date)
+		}
+	}
+}
+
+func TestDailyYesterday(t *testing.T) {
+	yesterday := Record{
+		Provider: "anthropic",
+		Model:    "sonnet",
+		Time:     fixedNow.AddDate(0, 0, -1),
+		Input:    100,
+		Output:   50,
+	}
+
+	snap := Aggregate([]Record{yesterday}, fixedNow, nil)
+	daily := snap.Daily
+
+	idx := dayIndex(t, daily, yesterday.Time.Format("2006-01-02"))
+	if idx != 82 {
+		t.Errorf("index of yesterday = %d, want 82", idx)
+	}
+	d := daily[idx]
+	if d.Total != 150 {
+		t.Errorf("Daily[%d].Total = %d, want 150", idx, d.Total)
+	}
+	if d.Requests != 1 {
+		t.Errorf("Daily[%d].Requests = %d, want 1", idx, d.Requests)
+	}
+	if d.ByProvider["anthropic"] != 150 {
+		t.Errorf("Daily[%d].ByProvider[anthropic] = %d, want 150", idx, d.ByProvider["anthropic"])
+	}
+	if daily[83].Total != 0 {
+		t.Errorf("Daily[83].Total = %d, want 0 (today is empty)", daily[83].Total)
+	}
+}
+
+func TestDailyIgnoresOldRecords(t *testing.T) {
+	old := Record{
+		Provider: "anthropic",
+		Model:    "sonnet",
+		Time:     fixedNow.AddDate(0, 0, -100),
+		Input:    500,
+	}
+
+	snap := Aggregate([]Record{old}, fixedNow, nil)
+	daily := snap.Daily
+
+	if len(daily) != 84 {
+		t.Fatalf("len(Daily) = %d, want 84", len(daily))
+	}
+	for i, d := range daily {
+		if d.Total != 0 {
+			t.Errorf("Daily[%d].Total = %d, want 0 (record is too old)", i, d.Total)
+		}
+	}
+}
+
+func TestDailyIgnoresFutureRecords(t *testing.T) {
+	future := Record{
+		Provider: "anthropic",
+		Model:    "sonnet",
+		Time:     fixedNow.AddDate(0, 0, 1),
+		Input:    500,
+	}
+
+	snap := Aggregate([]Record{future}, fixedNow, nil)
+	daily := snap.Daily
+
+	if len(daily) != 84 {
+		t.Fatalf("len(Daily) = %d, want 84", len(daily))
+	}
+	for i, d := range daily {
+		if d.Total != 0 {
+			t.Errorf("Daily[%d].Total = %d, want 0 (record is in the future)", i, d.Total)
+		}
+	}
+}
+
+func TestDailySumsCostAndRequests(t *testing.T) {
+	today := Record{
+		Provider: "anthropic",
+		Model:    "sonnet",
+		Time:     fixedNow,
+		Input:    100,
+		Output:   50,
+		Cost:     1.5,
+	}
+	alsoToday := Record{
+		Provider: "openai",
+		Model:    "gpt",
+		Time:     fixedNow.Add(-time.Hour),
+		Input:    200,
+		Cost:     0.25,
+	}
+
+	snap := Aggregate([]Record{today, alsoToday}, fixedNow, nil)
+	d := snap.Daily[83]
+
+	if d.Requests != 2 {
+		t.Errorf("Daily[83].Requests = %d, want 2", d.Requests)
+	}
+	if want := 1.75; math.Abs(d.Cost-want) > 1e-9 {
+		t.Errorf("Daily[83].Cost = %v, want %v", d.Cost, want)
+	}
+	if d.Total != 350 {
+		t.Errorf("Daily[83].Total = %d, want 350", d.Total)
+	}
+	if d.ByProvider["anthropic"] != 150 {
+		t.Errorf("Daily[83].ByProvider[anthropic] = %d, want 150", d.ByProvider["anthropic"])
+	}
+	if d.ByProvider["openai"] != 200 {
+		t.Errorf("Daily[83].ByProvider[openai] = %d, want 200", d.ByProvider["openai"])
+	}
+}
+
+func TestDailyUsesLocalTimezone(t *testing.T) {
+	brt := time.FixedZone("BRT", -3*60*60)
+	now := time.Date(2026, 3, 10, 15, 0, 0, 0, brt)
+
+	// 09:00 UTC is 06:00 local -> today.
+	today := Record{Provider: "p", Model: "m", Time: time.Date(2026, 3, 10, 9, 0, 0, 0, time.UTC), Input: 10}
+	// 19:00 UTC on the previous day is 16:00 local -> yesterday.
+	yesterday := Record{Provider: "p", Model: "m", Time: time.Date(2026, 3, 9, 19, 0, 0, 0, time.UTC), Input: 100}
+
+	snap := Aggregate([]Record{today, yesterday}, now, nil)
+	daily := snap.Daily
+
+	if want := "2026-03-10"; daily[83].Date != want {
+		t.Errorf("Daily[83].Date = %q, want %q", daily[83].Date, want)
+	}
+	if daily[83].Total != 10 {
+		t.Errorf("Daily[83].Total = %d, want 10", daily[83].Total)
+	}
+	if want := "2026-03-09"; daily[82].Date != want {
+		t.Errorf("Daily[82].Date = %q, want %q", daily[82].Date, want)
+	}
+	if daily[82].Total != 100 {
+		t.Errorf("Daily[82].Total = %d, want 100", daily[82].Total)
+	}
+}
+
+func TestDailyByProject(t *testing.T) {
+	recs := []Record{
+		{Provider: "p", Model: "m", Time: fixedNow, Input: 100, Project: "/home/user/proj-a"},
+		{Provider: "p", Model: "m", Time: fixedNow.Add(-time.Hour), Input: 50, Project: "/home/user/proj-a"},
+		{Provider: "p", Model: "m", Time: fixedNow.Add(-2 * time.Hour), Output: 20, Project: "/home/user/proj-b"},
+		// A record without a known project must not create an empty key.
+		{Provider: "p", Model: "m", Time: fixedNow.Add(-3 * time.Hour), Input: 7},
+	}
+
+	snap := Aggregate(recs, fixedNow, nil)
+	d := snap.Daily[83]
+
+	if d.ByProject == nil {
+		t.Fatal("Daily[83].ByProject is nil")
+	}
+	if got := d.ByProject["/home/user/proj-a"]; got != 150 {
+		t.Errorf("ByProject[/home/user/proj-a] = %d, want 150", got)
+	}
+	if got := d.ByProject["/home/user/proj-b"]; got != 20 {
+		t.Errorf("ByProject[/home/user/proj-b] = %d, want 20", got)
+	}
+	if _, ok := d.ByProject[""]; ok {
+		t.Error("ByProject has an empty project key")
+	}
+	if len(d.ByProject) != 2 {
+		t.Errorf("len(ByProject) = %d, want 2 (%v)", len(d.ByProject), d.ByProject)
+	}
+}
+
+func TestDailyByProjectIsNeverNil(t *testing.T) {
+	snap := Aggregate(nil, fixedNow, nil)
+
+	for i, d := range snap.Daily {
+		if d.ByProject == nil {
+			t.Errorf("Daily[%d].ByProject is nil", i)
+		}
+	}
+}
+
+// sess returns the session with the given id, failing the test when it is
+// missing.
+func sess(t *testing.T, sessions []Session, id string) Session {
+	t.Helper()
+	for _, s := range sessions {
+		if s.ID == id {
+			return s
+		}
+	}
+	t.Fatalf("session %q not found", id)
+	return Session{}
+}
+
+func TestSessionsGroupBySession(t *testing.T) {
+	recs := []Record{
+		{
+			Source:   "claude",
+			Provider: "anthropic",
+			Model:    "sonnet",
+			Time:     fixedNow.Add(-2 * time.Hour),
+			Input:    100,
+			Session:  "s1",
+			Project:  "/home/user/proj",
+		},
+		{
+			Source:   "claude",
+			Provider: "anthropic",
+			Model:    "sonnet",
+			Time:     fixedNow.Add(-time.Hour),
+			Output:   50,
+			Session:  "s1",
+			Project:  "/home/user/proj",
+		},
+		{
+			Source:   "codex",
+			Provider: "openai",
+			Model:    "gpt",
+			Time:     fixedNow.Add(-30 * time.Minute),
+			Input:    10,
+			Session:  "s2",
+		},
+	}
+
+	snap := Aggregate(recs, fixedNow, nil)
+	sessions := snap.Sessions
+
+	if len(sessions) != 2 {
+		t.Fatalf("len(Sessions) = %d, want 2", len(sessions))
+	}
+
+	first := sess(t, sessions, "s1")
+	if first.Total != 150 {
+		t.Errorf("s1 Total = %d, want 150", first.Total)
+	}
+	if first.Requests != 2 {
+		t.Errorf("s1 Requests = %d, want 2", first.Requests)
+	}
+	if first.Project != "/home/user/proj" {
+		t.Errorf("s1 Project = %q, want /home/user/proj", first.Project)
+	}
+	if first.Provider != "anthropic" {
+		t.Errorf("s1 Provider = %q, want anthropic", first.Provider)
+	}
+	if first.Model != "sonnet" {
+		t.Errorf("s1 Model = %q, want sonnet", first.Model)
+	}
+	if want := fixedNow.Add(-2 * time.Hour); !first.Start.Equal(want) {
+		t.Errorf("s1 Start = %v, want %v", first.Start, want)
+	}
+	if want := fixedNow.Add(-time.Hour); !first.End.Equal(want) {
+		t.Errorf("s1 End = %v, want %v", first.End, want)
+	}
+
+	second := sess(t, sessions, "s2")
+	if second.Total != 10 {
+		t.Errorf("s2 Total = %d, want 10", second.Total)
+	}
+	if second.Project != "" {
+		t.Errorf("s2 Project = %q, want empty", second.Project)
+	}
+}
+
+func TestSessionsSameIDDifferentSourceAreSeparate(t *testing.T) {
+	recs := []Record{
+		{Source: "claude", Provider: "anthropic", Model: "sonnet", Time: fixedNow, Input: 100, Session: "shared"},
+		{Source: "codex", Provider: "openai", Model: "gpt", Time: fixedNow.Add(-time.Hour), Input: 30, Session: "shared"},
+	}
+
+	snap := Aggregate(recs, fixedNow, nil)
+
+	if len(snap.Sessions) != 2 {
+		t.Fatalf("len(Sessions) = %d, want 2", len(snap.Sessions))
+	}
+	for _, s := range snap.Sessions {
+		if s.Total != 100 && s.Total != 30 {
+			t.Errorf("session %q Total = %d, want 100 or 30", s.ID, s.Total)
+		}
+	}
+}
+
+func TestSessionsIgnoreEmptySession(t *testing.T) {
+	recs := []Record{
+		{Source: "claude", Provider: "anthropic", Model: "sonnet", Time: fixedNow, Input: 100},
+		{Source: "claude", Provider: "anthropic", Model: "sonnet", Time: fixedNow.Add(-time.Hour), Input: 50},
+	}
+
+	snap := Aggregate(recs, fixedNow, nil)
+
+	if len(snap.Sessions) != 0 {
+		t.Fatalf("len(Sessions) = %d, want 0 (records without a session)", len(snap.Sessions))
+	}
+	if snap.Sessions == nil {
+		t.Error("Sessions is nil")
+	}
+}
+
+func TestSessionsDropOldSessions(t *testing.T) {
+	recs := []Record{
+		{
+			Source:   "claude",
+			Provider: "anthropic",
+			Model:    "sonnet",
+			Time:     fixedNow.AddDate(0, 0, -31),
+			Input:    100,
+			Session:  "old",
+		},
+		{
+			Source:   "claude",
+			Provider: "anthropic",
+			Model:    "sonnet",
+			Time:     fixedNow.AddDate(0, 0, -29),
+			Input:    100,
+			Session:  "recent",
+		},
+	}
+
+	snap := Aggregate(recs, fixedNow, nil)
+
+	if len(snap.Sessions) != 1 {
+		t.Fatalf("len(Sessions) = %d, want 1", len(snap.Sessions))
+	}
+	if snap.Sessions[0].ID != "recent" {
+		t.Errorf("Sessions[0].ID = %q, want recent", snap.Sessions[0].ID)
+	}
+}
+
+func TestSessionsSortedByEndDesc(t *testing.T) {
+	recs := []Record{
+		{Source: "claude", Provider: "p", Model: "m", Time: fixedNow.Add(-3 * time.Hour), Input: 1, Session: "a"},
+		{Source: "claude", Provider: "p", Model: "m", Time: fixedNow.Add(-time.Hour), Input: 1, Session: "b"},
+		{Source: "claude", Provider: "p", Model: "m", Time: fixedNow.Add(-2 * time.Hour), Input: 1, Session: "c"},
+	}
+
+	snap := Aggregate(recs, fixedNow, nil)
+
+	want := []string{"b", "c", "a"}
+	if len(snap.Sessions) != len(want) {
+		t.Fatalf("len(Sessions) = %d, want %d", len(snap.Sessions), len(want))
+	}
+	for i, id := range want {
+		if snap.Sessions[i].ID != id {
+			t.Errorf("Sessions[%d].ID = %q, want %q", i, snap.Sessions[i].ID, id)
+		}
+	}
+}
+
+func TestSessionsSortedByEndDescTieBreakByID(t *testing.T) {
+	at := fixedNow.Add(-time.Hour)
+	recs := []Record{
+		{Source: "claude", Provider: "p", Model: "m", Time: at, Input: 1, Session: "b"},
+		{Source: "claude", Provider: "p", Model: "m", Time: at, Input: 1, Session: "a"},
+	}
+
+	snap := Aggregate(recs, fixedNow, nil)
+
+	if len(snap.Sessions) != 2 {
+		t.Fatalf("len(Sessions) = %d, want 2", len(snap.Sessions))
+	}
+	if snap.Sessions[0].ID != "a" || snap.Sessions[1].ID != "b" {
+		t.Errorf("Sessions ids = %q, %q, want a, b", snap.Sessions[0].ID, snap.Sessions[1].ID)
+	}
+}
+
+func TestSessionsTruncatedToMaxSessions(t *testing.T) {
+	recs := make([]Record, 0, maxSessions+25)
+	for i := 0; i < maxSessions+25; i++ {
+		recs = append(recs, Record{
+			Source:   "claude",
+			Provider: "p",
+			Model:    "m",
+			Time:     fixedNow.Add(-time.Duration(i) * time.Minute),
+			Input:    1,
+			Session:  fmt.Sprintf("s%03d", i),
+		})
+	}
+
+	snap := Aggregate(recs, fixedNow, nil)
+
+	if len(snap.Sessions) != maxSessions {
+		t.Fatalf("len(Sessions) = %d, want %d", len(snap.Sessions), maxSessions)
+	}
+	// The most recent session is kept, the oldest ones are dropped.
+	if snap.Sessions[0].ID != "s000" {
+		t.Errorf("Sessions[0].ID = %q, want s000", snap.Sessions[0].ID)
+	}
+	if last := snap.Sessions[maxSessions-1].ID; last != "s199" {
+		t.Errorf("Sessions[%d].ID = %q, want s199", maxSessions-1, last)
+	}
+}
+
+func TestSessionsDominantModelAndProvider(t *testing.T) {
+	recs := []Record{
+		{
+			Source:   "claude",
+			Provider: "anthropic",
+			Model:    "sonnet",
+			Time:     fixedNow.Add(-3 * time.Hour),
+			Input:    100,
+			Session:  "s1",
+		},
+		{
+			Source:   "claude",
+			Provider: "openai",
+			Model:    "gpt",
+			Time:     fixedNow.Add(-2 * time.Hour),
+			Input:    500,
+			Session:  "s1",
+		},
+		{
+			Source:   "claude",
+			Provider: "anthropic",
+			Model:    "opus",
+			Time:     fixedNow.Add(-time.Hour),
+			Input:    200,
+			Session:  "s1",
+		},
+	}
+
+	snap := Aggregate(recs, fixedNow, nil)
+	s := sess(t, snap.Sessions, "s1")
+
+	if s.Provider != "openai" {
+		t.Errorf("Provider = %q, want openai", s.Provider)
+	}
+	if s.Model != "gpt" {
+		t.Errorf("Model = %q, want gpt", s.Model)
+	}
+	if s.Total != 800 {
+		t.Errorf("Total = %d, want 800", s.Total)
+	}
+	if s.Requests != 3 {
+		t.Errorf("Requests = %d, want 3", s.Requests)
+	}
+}
+
+func TestSessionsDominantTieBreakIsAlphabetical(t *testing.T) {
+	recs := []Record{
+		{Source: "claude", Provider: "zeta", Model: "zeta-model", Time: fixedNow.Add(-2 * time.Hour), Input: 100, Session: "s1"},
+		{Source: "claude", Provider: "alpha", Model: "alpha-model", Time: fixedNow.Add(-time.Hour), Input: 100, Session: "s1"},
+		{Source: "claude", Provider: "beta", Model: "beta-model", Time: fixedNow, Input: 100, Session: "s1"},
+	}
+
+	snap := Aggregate(recs, fixedNow, nil)
+	s := sess(t, snap.Sessions, "s1")
+
+	if s.Provider != "alpha" {
+		t.Errorf("Provider = %q, want alpha (alphabetical tie-break)", s.Provider)
+	}
+	if s.Model != "alpha-model" {
+		t.Errorf("Model = %q, want alpha-model (alphabetical tie-break)", s.Model)
+	}
+}
+
+func TestSessionsProjectFromFirstKnownRecord(t *testing.T) {
+	recs := []Record{
+		{Source: "claude", Provider: "p", Model: "m", Time: fixedNow.Add(-2 * time.Hour), Input: 1, Session: "s1"},
+		{Source: "claude", Provider: "p", Model: "m", Time: fixedNow.Add(-time.Hour), Input: 1, Session: "s1", Project: "/proj/one"},
+		{Source: "claude", Provider: "p", Model: "m", Time: fixedNow, Input: 1, Session: "s1", Project: "/proj/two"},
+	}
+
+	snap := Aggregate(recs, fixedNow, nil)
+	s := sess(t, snap.Sessions, "s1")
+
+	if s.Project != "/proj/one" {
+		t.Errorf("Project = %q, want /proj/one", s.Project)
+	}
+}
+
+func TestAggregateEmptySnapshotHasNonNilSessions(t *testing.T) {
+	snap := Aggregate(nil, fixedNow, nil)
+
+	if snap.Sessions == nil {
+		t.Fatal("Sessions is nil")
+	}
+	if len(snap.Sessions) != 0 {
+		t.Errorf("len(Sessions) = %d, want 0", len(snap.Sessions))
+	}
+}
+
+func TestSessionsJSONTagsAreSnakeCase(t *testing.T) {
+	raw, err := json.Marshal(Session{
+		ID:       "s1",
+		Project:  "/proj",
+		Provider: "anthropic",
+		Model:    "sonnet",
+		Start:    fixedNow,
+		End:      fixedNow,
+	})
+	if err != nil {
+		t.Fatalf("marshal Session: %v", err)
+	}
+	for _, key := range []string{`"id"`, `"project"`, `"provider"`, `"model"`, `"start"`, `"end"`, `"total"`, `"requests"`} {
+		if !strings.Contains(string(raw), key) {
+			t.Errorf("Session JSON %s missing %s", raw, key)
+		}
+	}
+
+	raw, err = json.Marshal(Aggregate(nil, fixedNow, nil))
+	if err != nil {
+		t.Fatalf("marshal Snapshot: %v", err)
+	}
+	for _, key := range []string{`"sessions"`, `"by_project"`} {
+		if !strings.Contains(string(raw), key) {
+			t.Errorf("Snapshot JSON missing %s", key)
+		}
+	}
+}
+
 func TestBlockStartTruncatedToHour(t *testing.T) {
 	r := Record{
 		Provider: "anthropic",
@@ -398,6 +934,17 @@ func TestAggregateEmptyInputHasNoNilSlices(t *testing.T) {
 			t.Errorf("Hourly[%d].ByProvider is nil", i)
 		}
 	}
+	if snap.Daily == nil {
+		t.Error("Daily is nil")
+	}
+	if len(snap.Daily) != 84 {
+		t.Errorf("len(Daily) = %d, want 84", len(snap.Daily))
+	}
+	for i, d := range snap.Daily {
+		if d.ByProvider == nil {
+			t.Errorf("Daily[%d].ByProvider is nil", i)
+		}
+	}
 	if snap.Errors == nil {
 		t.Error("Errors is nil")
 	}
@@ -422,7 +969,7 @@ func TestJSONTagsAreSnakeCase(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal Snapshot: %v", err)
 	}
-	for _, key := range []string{`"generated_at"`, `"windows"`, `"by_provider"`, `"blocks"`, `"hourly"`, `"errors"`, `"requests"`, `"total"`, `"name"`, `"sum"`, `"hour"`} {
+	for _, key := range []string{`"generated_at"`, `"windows"`, `"by_provider"`, `"blocks"`, `"hourly"`, `"daily"`, `"errors"`, `"requests"`, `"total"`, `"name"`, `"sum"`, `"hour"`, `"date"`} {
 		if !strings.Contains(string(raw), key) {
 			t.Errorf("Snapshot JSON missing %s", key)
 		}

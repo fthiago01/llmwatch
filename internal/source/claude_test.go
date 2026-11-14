@@ -73,6 +73,34 @@ func TestClaudeDedupesByMessageID(t *testing.T) {
 	}
 }
 
+func TestClaudeSessionAndProject(t *testing.T) {
+	root := t.TempDir()
+	content := `{"timestamp":"2026-01-02T03:04:05.000Z","sessionId":"sess_1","cwd":"/home/user/proj","message":{"id":"a","model":"claude-opus-4","usage":{"input_tokens":10,"output_tokens":5}}}` + "\n" +
+		`{"timestamp":"2026-01-02T03:04:06.000Z","message":{"id":"b","model":"claude-opus-4","usage":{"input_tokens":20,"output_tokens":8}}}` + "\n"
+	writeFile(t, root, "proj/session.jsonl", content)
+
+	c := NewClaude(root)
+	recs, err := c.Load(context.Background())
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(recs) != 2 {
+		t.Fatalf("got %d records, want 2: %+v", len(recs), recs)
+	}
+	if recs[0].Session != "sess_1" {
+		t.Fatalf("session = %q, want sess_1", recs[0].Session)
+	}
+	if recs[0].Project != "/home/user/proj" {
+		t.Fatalf("project = %q, want /home/user/proj", recs[0].Project)
+	}
+	if recs[1].Session != "" {
+		t.Fatalf("session = %q, want empty", recs[1].Session)
+	}
+	if recs[1].Project != "" {
+		t.Fatalf("project = %q, want empty", recs[1].Project)
+	}
+}
+
 func TestClaudeIgnoresSyntheticAndInvalidLines(t *testing.T) {
 	root := t.TempDir()
 	content := entry("2026-01-02T03:04:05.000Z", "synth", "<synthetic>", 10, 5, 0, 0) + "\n" +

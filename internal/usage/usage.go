@@ -14,6 +14,15 @@ const blockDuration = 5 * time.Hour
 // hourlyBuckets is the number of hourly buckets kept in a snapshot.
 const hourlyBuckets = 24
 
+// dailyDays is the number of daily buckets kept in a snapshot.
+const dailyDays = 84
+
+// sessionDays is the number of days a session is kept in a snapshot.
+const sessionDays = 30
+
+// maxSessions is the maximum number of sessions reported in a snapshot.
+const maxSessions = 200
+
 // Record is a single usage observation attributed to a provider model.
 type Record struct {
 	Source     string    `json:"source"`
@@ -26,6 +35,8 @@ type Record struct {
 	CacheWrite int64     `json:"cache_write"`
 	Reasoning  int64     `json:"reasoning"`
 	Cost       float64   `json:"cost"`
+	Session    string    `json:"session,omitempty"` // session/thread id, "" when unknown
+	Project    string    `json:"project,omitempty"` // working directory of the session, "" when unknown
 }
 
 // tokens returns the total number of tokens accounted for by the record.
@@ -75,6 +86,41 @@ type Window struct {
 type Bucket struct {
 	Hour       time.Time        `json:"hour"`
 	ByProvider map[string]int64 `json:"by_provider"`
+}
+
+// Day holds the usage of one calendar day, split by provider.
+type Day struct {
+	// Date is the day in the "2006-01-02" format, in the timezone of the
+	// snapshot.
+	Date string `json:"date"`
+	// Totals holds the aggregated counters of the day.
+	Totals
+	// ByProvider holds the tokens spent per provider; it is never nil.
+	ByProvider map[string]int64 `json:"by_provider"`
+	// ByProject holds the tokens spent per project; it is never nil. Records
+	// without a known project are not counted.
+	ByProject map[string]int64 `json:"by_project"`
+}
+
+// Session summarizes the usage of a single session/thread.
+type Session struct {
+	// ID is the session identifier, unique per source.
+	ID string `json:"id"`
+	// Project is the working directory of the session, taken from the first
+	// record with a known project; "" when unknown.
+	Project string `json:"project"`
+	// Provider is the provider that spent the most tokens in the session.
+	Provider string `json:"provider"`
+	// Model is the model that spent the most tokens in the session; ties are
+	// broken alphabetically.
+	Model string `json:"model"`
+	// Start is the time of the oldest record of the session.
+	Start time.Time `json:"start"`
+	// End is the time of the newest record of the session.
+	End time.Time `json:"end"`
+	// Totals holds the aggregated counters of the session; Requests counts
+	// the number of records of the session.
+	Totals
 }
 
 // Block describes the active usage block of a provider.
@@ -160,6 +206,8 @@ type Snapshot struct {
 	Windows     []Window      `json:"windows"`
 	Blocks      []Block       `json:"blocks"`
 	Hourly      []Bucket      `json:"hourly"`
+	Daily       []Day         `json:"daily"`
+	Sessions    []Session     `json:"sessions"`
 	Quotas      []QuotaStatus `json:"quotas"`
 	Errors      []string      `json:"errors"`
 	// Update holds the update status, filled by the server and not by the
@@ -209,6 +257,8 @@ func Aggregate(recs []Record, now time.Time, limits map[string]int64) Snapshot {
 		Windows:     windows,
 		Blocks:      buildBlocks(valid, now, limits),
 		Hourly:      buildHourly(valid, now),
+		Daily:       buildDaily(valid, now),
+		Sessions:    buildSessions(valid, now),
 		// Quotas are filled by the server, not by the aggregator.
 		Quotas: []QuotaStatus{},
 		Errors: []string{},
@@ -281,6 +331,145 @@ func buildHourly(recs []Record, now time.Time) []Bucket {
 		buckets[len(buckets)-1-age].ByProvider[r.Provider] += r.tokens()
 	}
 	return buckets
+}
+
+// buildDaily splits the records into the last dailyDays calendar days, from
+// the oldest to the current one.
+//
+// The days are computed from the local midnight of now, so the timezone and
+// the daylight saving changes of the local calendar are respected.
+func buildDaily(recs []Record, now time.Time) []Day {
+	loc := now.Location()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
+
+	days := make([]Day, dailyDays)
+	byDate := make(map[string]int, dailyDays)
+	for i := range days {
+		day := today.AddDate(0, 0, i-(dailyDays-1))
+		days[i] = Day{
+			Date:       day.Format("2006-01-02"),
+			ByProvider: map[string]int64{},
+			ByProject:  map[string]int64{},
+		}
+		byDate[days[i].Date] = i
+	}
+
+	for _, r := range recs {
+		local := r.Time.In(loc)
+		date := local.Format("2006-01-02")
+		i, ok := byDate[date]
+		if !ok {
+			// The record is in the future or older than the oldest day.
+			continue
+		}
+		days[i].Totals.Add(r)
+		days[i].ByProvider[r.Provider] += r.tokens()
+		if r.Project != "" {
+			days[i].ByProject[r.Project] += r.tokens()
+		}
+	}
+	return days
+}
+
+// sessionKey identifies a session within a source.
+type sessionKey struct {
+	source  string
+	session string
+}
+
+// sessionAcc accumulates the data of a session while it is being built.
+type sessionAcc struct {
+	session  Session
+	byModel  map[string]int64
+	byProv   map[string]int64
+	hasStart bool
+}
+
+// buildSessions groups the records by (source, session) and summarizes the
+// sessions that are still recent.
+//
+// Records without a known session are ignored. Sessions whose last record is
+// older than sessionDays are dropped. The result is sorted by the end of the
+// session, most recent first, and truncated to maxSessions entries; the
+// returned slice is never nil.
+func buildSessions(recs []Record, now time.Time) []Session {
+	accs := map[sessionKey]*sessionAcc{}
+
+	for _, r := range recs {
+		if r.Session == "" {
+			// The session is unknown: it cannot be grouped.
+			continue
+		}
+		key := sessionKey{source: r.Source, session: r.Session}
+		acc, ok := accs[key]
+		if !ok {
+			acc = &sessionAcc{
+				session: Session{ID: r.Session},
+				byModel: map[string]int64{},
+				byProv:  map[string]int64{},
+			}
+			accs[key] = acc
+		}
+
+		if !acc.hasStart || r.Time.Before(acc.session.Start) {
+			acc.session.Start = r.Time
+			acc.hasStart = true
+		}
+		if acc.session.End.IsZero() || r.Time.After(acc.session.End) {
+			acc.session.End = r.Time
+		}
+		if acc.session.Project == "" && r.Project != "" {
+			acc.session.Project = r.Project
+		}
+
+		tokens := r.tokens()
+		acc.byModel[r.Model] += tokens
+		acc.byProv[r.Provider] += tokens
+		acc.session.Totals.Add(r)
+	}
+
+	cutoff := now.AddDate(0, 0, -sessionDays)
+	sessions := make([]Session, 0, len(accs))
+	for _, acc := range accs {
+		if acc.session.End.Before(cutoff) {
+			// The session is too old to be reported.
+			continue
+		}
+		s := acc.session
+		s.Provider = dominant(acc.byProv)
+		s.Model = dominant(acc.byModel)
+		sessions = append(sessions, s)
+	}
+
+	sort.Slice(sessions, func(i, j int) bool {
+		a, b := sessions[i], sessions[j]
+		if !a.End.Equal(b.End) {
+			return a.End.After(b.End)
+		}
+		return a.ID < b.ID
+	})
+
+	if len(sessions) > maxSessions {
+		sessions = sessions[:maxSessions]
+	}
+	return sessions
+}
+
+// dominant returns the key with the highest counter; ties are broken
+// alphabetically.
+func dominant(counts map[string]int64) string {
+	best := ""
+	bestTokens := int64(0)
+	found := false
+	for key, tokens := range counts {
+		switch {
+		case !found || tokens > bestTokens:
+			best, bestTokens, found = key, tokens, true
+		case tokens == bestTokens && key < best:
+			best = key
+		}
+	}
+	return best
 }
 
 // buildBlocks computes the active usage block of every provider.

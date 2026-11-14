@@ -28,7 +28,8 @@ const (
 		model_provider TEXT NOT NULL,
 		tokens_used INTEGER NOT NULL DEFAULT 0,
 		model TEXT,
-		updated_at_ms INTEGER
+		updated_at_ms INTEGER,
+		cwd TEXT
 	)`
 	opencodeSessionSchema = `CREATE TABLE session_message (
 		id text PRIMARY KEY,
@@ -38,6 +39,23 @@ const (
 		time_created integer NOT NULL,
 		time_updated integer NOT NULL,
 		data text NOT NULL
+	)`
+	// opencodeSessionTableSchema is the session table of the opencode
+	// database, which maps a session id to its working directory.
+	//
+	// The time_created column mirrors the real schema: it makes the joined
+	// columns ambiguous, so the queries must qualify them.
+	opencodeSessionTableSchema = `CREATE TABLE session (
+		id text PRIMARY KEY,
+		directory text NOT NULL,
+		time_created integer NOT NULL
+	)`
+	// opencodeSessionV2TableSchema is the session_v2 table of the opencode
+	// database, which holds the sessions of the v2 messages.
+	opencodeSessionV2TableSchema = `CREATE TABLE session_v2 (
+		id text PRIMARY KEY,
+		directory text NOT NULL,
+		time_created integer NOT NULL
 	)`
 )
 
@@ -106,7 +124,10 @@ func insertOpencodeSessionMessage(t *testing.T, path, id, msgType, data string, 
 }
 
 // insertCodexThread inserts one thread row in the codex schema.
-func insertCodexThread(t *testing.T, path, id string, updatedAt int64, provider string, tokens int64, model any, updatedAtMs any) {
+//
+// The cwd is the working directory of the thread and may be nil, which
+// stores a NULL value.
+func insertCodexThread(t *testing.T, path, id string, updatedAt int64, provider string, tokens int64, model any, updatedAtMs any, cwd any) {
 	t.Helper()
 
 	db, err := sql.Open("sqlite", "file:"+path)
@@ -119,8 +140,36 @@ func insertCodexThread(t *testing.T, path, id string, updatedAt int64, provider 
 		}
 	}()
 
-	stmt := `INSERT INTO threads (id, updated_at, model_provider, tokens_used, model, updated_at_ms) VALUES (?, ?, ?, ?, ?, ?)`
-	if _, err := db.Exec(stmt, id, updatedAt, provider, tokens, model, updatedAtMs); err != nil {
+	stmt := `INSERT INTO threads (id, updated_at, model_provider, tokens_used, model, updated_at_ms, cwd) ` +
+		`VALUES (?, ?, ?, ?, ?, ?, ?)`
+	if _, err := db.Exec(stmt, id, updatedAt, provider, tokens, model, updatedAtMs, cwd); err != nil {
+		t.Fatalf("insert %s: %v", id, err)
+	}
+}
+
+// insertOpencodeSession inserts one session row in the opencode schema.
+//
+// The table is the session one when v2 is false and the session_v2 one
+// otherwise.
+func insertOpencodeSession(t *testing.T, path, id, directory string, v2 bool) {
+	t.Helper()
+
+	db, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatalf("open %s: %v", path, err)
+	}
+	defer func() {
+		if cerr := db.Close(); cerr != nil {
+			t.Fatalf("close %s: %v", path, cerr)
+		}
+	}()
+
+	table := "session"
+	if v2 {
+		table = "session_v2"
+	}
+	stmt := `INSERT INTO ` + table + ` (id, directory, time_created) VALUES (?, ?, ?)`
+	if _, err := db.Exec(stmt, id, directory, 1_700_000_000_000); err != nil {
 		t.Fatalf("insert %s: %v", id, err)
 	}
 }
@@ -293,7 +342,7 @@ func TestCodexMapsFields(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "state.sqlite")
 	execDB(t, path, codexSchema)
 
-	insertCodexThread(t, path, "thr_1", 1_700_000_000, "openai", 1234, "gpt-5-codex", 1_700_000_500_000)
+	insertCodexThread(t, path, "thr_1", 1_700_000_000, "openai", 1234, "gpt-5-codex", 1_700_000_500_000, "/home/user/proj")
 
 	c := NewCodex(path)
 	recs, err := c.Load(context.Background())
@@ -331,7 +380,7 @@ func TestCodexFallsBackToUpdatedAtSeconds(t *testing.T) {
 	execDB(t, path, codexSchema)
 
 	// updated_at_ms is NULL: updated_at (seconds) must be used instead.
-	insertCodexThread(t, path, "thr_1", 1_700_000_000, "openai", 42, "gpt-5-codex", nil)
+	insertCodexThread(t, path, "thr_1", 1_700_000_000, "openai", 42, "gpt-5-codex", nil, "/home/user/proj")
 
 	c := NewCodex(path)
 	recs, err := c.Load(context.Background())
@@ -351,8 +400,8 @@ func TestCodexIgnoresZeroTokenThreads(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "state.sqlite")
 	execDB(t, path, codexSchema)
 
-	insertCodexThread(t, path, "thr_zero", 1_700_000_000, "openai", 0, "gpt-5-codex", nil)
-	insertCodexThread(t, path, "thr_ok", 1_700_000_001, "openai", 10, "gpt-5-codex", nil)
+	insertCodexThread(t, path, "thr_zero", 1_700_000_000, "openai", 0, "gpt-5-codex", nil, "/home/user/proj")
+	insertCodexThread(t, path, "thr_ok", 1_700_000_001, "openai", 10, "gpt-5-codex", nil, "/home/user/proj")
 
 	c := NewCodex(path)
 	recs, err := c.Load(context.Background())
@@ -371,7 +420,7 @@ func TestCodexHandlesNullModel(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "state.sqlite")
 	execDB(t, path, codexSchema)
 
-	insertCodexThread(t, path, "thr_1", 1_700_000_000, "openai", 5, nil, nil)
+	insertCodexThread(t, path, "thr_1", 1_700_000_000, "openai", 5, nil, nil, "/home/user/proj")
 
 	c := NewCodex(path)
 	recs, err := c.Load(context.Background())
@@ -440,7 +489,7 @@ func TestOpencodeFingerprintChangesAfterInsert(t *testing.T) {
 func TestCodexFingerprintChangesAfterInsert(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "state.sqlite")
 	execDB(t, path, codexSchema)
-	insertCodexThread(t, path, "thr_1", 1_700_000_000, "openai", 10, "gpt-5-codex", nil)
+	insertCodexThread(t, path, "thr_1", 1_700_000_000, "openai", 10, "gpt-5-codex", nil, "/home/user/proj")
 
 	c := NewCodex(path)
 	fp1, err := c.Fingerprint()
@@ -452,7 +501,7 @@ func TestCodexFingerprintChangesAfterInsert(t *testing.T) {
 	}
 
 	time.Sleep(10 * time.Millisecond)
-	insertCodexThread(t, path, "thr_2", 1_700_000_001, "openai", 20, "gpt-5-codex", nil)
+	insertCodexThread(t, path, "thr_2", 1_700_000_001, "openai", 20, "gpt-5-codex", nil, "/home/user/proj")
 
 	fp2, err := c.Fingerprint()
 	if err != nil {
@@ -643,5 +692,189 @@ func TestOpencodeMissingTablesReturnsEmpty(t *testing.T) {
 	}
 	if len(recs) != 0 {
 		t.Fatalf("got %d records, want 0: %+v", len(recs), recs)
+	}
+}
+
+func TestCodexMapsSessionAndProject(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "state.sqlite")
+	execDB(t, path, codexSchema)
+
+	insertCodexThread(t, path, "thr_1", 1_700_000_000, "openai", 1234, "gpt-5-codex", nil, "/home/user/proj")
+
+	c := NewCodex(path)
+	recs, err := c.Load(context.Background())
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(recs) != 1 {
+		t.Fatalf("got %d records, want 1: %+v", len(recs), recs)
+	}
+
+	got := recs[0]
+	if got.Session != "thr_1" {
+		t.Fatalf("session = %q, want thr_1", got.Session)
+	}
+	if got.Project != "/home/user/proj" {
+		t.Fatalf("project = %q, want /home/user/proj", got.Project)
+	}
+}
+
+func TestCodexHandlesNullCwd(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "state.sqlite")
+	execDB(t, path, codexSchema)
+
+	// A NULL cwd must not break the load: the project stays unknown.
+	insertCodexThread(t, path, "thr_1", 1_700_000_000, "openai", 5, "gpt-5-codex", nil, nil)
+
+	c := NewCodex(path)
+	recs, err := c.Load(context.Background())
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(recs) != 1 {
+		t.Fatalf("got %d records, want 1: %+v", len(recs), recs)
+	}
+	if recs[0].Session != "thr_1" {
+		t.Fatalf("session = %q, want thr_1", recs[0].Session)
+	}
+	if recs[0].Project != "" {
+		t.Fatalf("project = %q, want empty", recs[0].Project)
+	}
+}
+
+func TestOpencodeMapsSessionAndProject(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "opencode.db")
+	execDB(t, path, opencodeSchema, opencodeSessionSchema, opencodeSessionTableSchema)
+	insertOpencodeSession(t, path, "ses_1", "/home/user/proj", false)
+
+	insertOpencodeMessage(t, path, "msg_1",
+		opencodeData("anthropic", "claude-sonnet-4", 0.1, 10, 5, 0, 0, 0), 1_700_000_000_000)
+	insertOpencodeSessionMessage(t, path, "smsg_1", "assistant",
+		opencodeSessionData("minimax-coding-plan", "MiniMax-M3", 0, 255, 790, 0, 0, 0), 1_700_000_001_000)
+
+	o := NewOpencode(path)
+	recs, err := o.Load(context.Background())
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(recs) != 2 {
+		t.Fatalf("got %d records, want 2: %+v", len(recs), recs)
+	}
+
+	for _, rec := range recs {
+		if rec.Session != "ses_1" {
+			t.Fatalf("session = %q, want ses_1: %+v", rec.Session, rec)
+		}
+		if rec.Project != "/home/user/proj" {
+			t.Fatalf("project = %q, want /home/user/proj: %+v", rec.Project, rec)
+		}
+	}
+}
+
+func TestOpencodeWithoutSessionTableKeepsWorking(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "opencode.db")
+	// The session table is absent: an older opencode database. The load
+	// must still succeed and the project must stay unknown.
+	execDB(t, path, opencodeSchema, opencodeSessionSchema)
+
+	insertOpencodeMessage(t, path, "msg_1",
+		opencodeData("anthropic", "claude-sonnet-4", 0.1, 10, 5, 0, 0, 0), 1_700_000_000_000)
+	insertOpencodeSessionMessage(t, path, "smsg_1", "assistant",
+		opencodeSessionData("minimax-coding-plan", "MiniMax-M3", 0, 255, 790, 0, 0, 0), 1_700_000_001_000)
+
+	o := NewOpencode(path)
+	recs, err := o.Load(context.Background())
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(recs) != 2 {
+		t.Fatalf("got %d records, want 2: %+v", len(recs), recs)
+	}
+
+	for _, rec := range recs {
+		if rec.Session != "ses_1" {
+			t.Fatalf("session = %q, want ses_1: %+v", rec.Session, rec)
+		}
+		if rec.Project != "" {
+			t.Fatalf("project = %q, want empty: %+v", rec.Project, rec)
+		}
+	}
+}
+
+func TestOpencodeUnknownSessionHasEmptyProject(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "opencode.db")
+	execDB(t, path, opencodeSchema, opencodeSessionTableSchema)
+	// The session of the message is unknown to the session table.
+	insertOpencodeSession(t, path, "ses_other", "/home/user/other", false)
+
+	insertOpencodeMessage(t, path, "msg_1",
+		opencodeData("anthropic", "claude-sonnet-4", 0.1, 10, 5, 0, 0, 0), 1_700_000_000_000)
+
+	o := NewOpencode(path)
+	recs, err := o.Load(context.Background())
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(recs) != 1 {
+		t.Fatalf("got %d records, want 1: %+v", len(recs), recs)
+	}
+	if recs[0].Session != "ses_1" {
+		t.Fatalf("session = %q, want ses_1", recs[0].Session)
+	}
+	if recs[0].Project != "" {
+		t.Fatalf("project = %q, want empty", recs[0].Project)
+	}
+}
+
+func TestOpencodeSessionMessageUsesSessionV2(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "opencode.db")
+	execDB(t, path, opencodeSessionSchema, opencodeSessionTableSchema, opencodeSessionV2TableSchema)
+	// The legacy session table knows the session, but with another
+	// directory: the v2 messages reference the session_v2 table.
+	insertOpencodeSession(t, path, "ses_1", "/home/user/legacy", false)
+	insertOpencodeSession(t, path, "ses_1", "/home/user/v2", true)
+
+	insertOpencodeSessionMessage(t, path, "smsg_1", "assistant",
+		opencodeSessionData("minimax-coding-plan", "MiniMax-M3", 0, 255, 790, 0, 0, 0), 1_700_000_000_000)
+
+	o := NewOpencode(path)
+	recs, err := o.Load(context.Background())
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(recs) != 1 {
+		t.Fatalf("got %d records, want 1: %+v", len(recs), recs)
+	}
+	if recs[0].Session != "ses_1" {
+		t.Fatalf("session = %q, want ses_1", recs[0].Session)
+	}
+	if recs[0].Project != "/home/user/v2" {
+		t.Fatalf("project = %q, want /home/user/v2", recs[0].Project)
+	}
+}
+
+func TestOpencodeSessionMessageFallsBackToLegacySession(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "opencode.db")
+	// The session_v2 table is absent: the legacy session table is the only
+	// one available.
+	execDB(t, path, opencodeSessionSchema, opencodeSessionTableSchema)
+	insertOpencodeSession(t, path, "ses_1", "/home/user/proj", false)
+
+	insertOpencodeSessionMessage(t, path, "smsg_1", "assistant",
+		opencodeSessionData("minimax-coding-plan", "MiniMax-M3", 0, 255, 790, 0, 0, 0), 1_700_000_000_000)
+
+	o := NewOpencode(path)
+	recs, err := o.Load(context.Background())
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(recs) != 1 {
+		t.Fatalf("got %d records, want 1: %+v", len(recs), recs)
+	}
+	if recs[0].Session != "ses_1" {
+		t.Fatalf("session = %q, want ses_1", recs[0].Session)
+	}
+	if recs[0].Project != "/home/user/proj" {
+		t.Fatalf("project = %q, want /home/user/proj", recs[0].Project)
 	}
 }

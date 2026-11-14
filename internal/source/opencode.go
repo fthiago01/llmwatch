@@ -24,10 +24,44 @@ const (
 	// The json_valid guard is required: json_extract raises an error on
 	// malformed JSON, which would abort the whole query instead of skipping
 	// the broken rows.
-	opencodeQuery = `SELECT time_created, data FROM message WHERE json_valid(data) AND json_extract(data,'$.role')='assistant'`
+	//
+	// The session id identifies the conversation and the directory of the
+	// joined session is the project it belongs to.
+	opencodeQuery = `SELECT m.time_created, m.data, m.session_id, COALESCE(s.directory,'') ` +
+		`FROM message m LEFT JOIN session s ON s.id = m.session_id ` +
+		`WHERE json_valid(m.data) AND json_extract(m.data,'$.role')='assistant'`
+	// opencodeQueryNoSession selects the assistant messages of the legacy
+	// opencode database when the session table is absent.
+	//
+	// It is used for the databases written by an older opencode version,
+	// which have no session table to join: the project stays unknown.
+	opencodeQueryNoSession = `SELECT time_created, data, session_id, '' ` +
+		`FROM message WHERE json_valid(data) AND json_extract(data,'$.role')='assistant'`
 	// opencodeSessionQuery selects the assistant messages of the opencode v2
 	// database, which stores them in the session_message table.
-	opencodeSessionQuery = `SELECT time_created, data FROM session_message WHERE type='assistant' AND json_valid(data)`
+	//
+	// The session id of a v2 message references the session_v2 table, which
+	// is a superset of the legacy session table: the newest sessions only
+	// exist there. The directory of the joined session is the project the
+	// message belongs to.
+	opencodeSessionQuery = `SELECT sm.time_created, sm.data, sm.session_id, COALESCE(s.directory,'') ` +
+		`FROM session_message sm LEFT JOIN session_v2 s ON s.id = sm.session_id ` +
+		`WHERE sm.type='assistant' AND json_valid(sm.data)`
+	// opencodeSessionQueryLegacy selects the assistant messages of the
+	// opencode v2 database when the session_v2 table is absent.
+	//
+	// It falls back to the legacy session table, which is the only one
+	// available in the databases written before the v2 sessions were split.
+	opencodeSessionQueryLegacy = `SELECT sm.time_created, sm.data, sm.session_id, COALESCE(s.directory,'') ` +
+		`FROM session_message sm LEFT JOIN session s ON s.id = sm.session_id ` +
+		`WHERE sm.type='assistant' AND json_valid(sm.data)`
+	// opencodeSessionQueryNoSession selects the assistant messages of the
+	// opencode v2 database when no session table is available.
+	//
+	// It is used for the databases written by an older opencode version,
+	// which have no session table to join: the project stays unknown.
+	opencodeSessionQueryNoSession = `SELECT time_created, data, session_id, '' ` +
+		`FROM session_message WHERE type='assistant' AND json_valid(data)`
 	// opencodeTableExistsQuery checks whether a table is present in the
 	// database schema.
 	opencodeTableExistsQuery = `SELECT name FROM sqlite_master WHERE type='table' AND name=?`
@@ -125,12 +159,31 @@ func (o *Opencode) Load(ctx context.Context) (recs []usage.Record, err error) {
 
 	out := []usage.Record{}
 
+	// The session tables map a session id to its working directory. They are
+	// absent in the databases written by an older opencode version: the
+	// records are still loaded, but their project stays unknown.
+	//
+	// The legacy messages reference the session table and the v2 messages
+	// reference the session_v2 one, which holds the newest sessions too.
+	hasSession, err := o.tableExists(ctx, db, "session")
+	if err != nil {
+		return nil, err
+	}
+	hasSessionV2, err := o.tableExists(ctx, db, "session_v2")
+	if err != nil {
+		return nil, err
+	}
+
 	legacy, err := o.tableExists(ctx, db, "message")
 	if err != nil {
 		return nil, err
 	}
 	if legacy {
-		recs, err := loadOpencodeRows(ctx, db, o.dbPath, opencodeQuery, parseOpencodeMessage)
+		query := opencodeQuery
+		if !hasSession {
+			query = opencodeQueryNoSession
+		}
+		recs, err := loadOpencodeRows(ctx, db, o.dbPath, query, parseOpencodeMessage)
 		if err != nil {
 			return nil, err
 		}
@@ -142,7 +195,14 @@ func (o *Opencode) Load(ctx context.Context) (recs []usage.Record, err error) {
 		return nil, err
 	}
 	if session {
-		recs, err := loadOpencodeRows(ctx, db, o.dbPath, opencodeSessionQuery, parseOpencodeSessionMessage)
+		query := opencodeSessionQueryNoSession
+		switch {
+		case hasSessionV2:
+			query = opencodeSessionQuery
+		case hasSession:
+			query = opencodeSessionQueryLegacy
+		}
+		recs, err := loadOpencodeRows(ctx, db, o.dbPath, query, parseOpencodeSessionMessage)
 		if err != nil {
 			return nil, err
 		}
@@ -176,7 +236,7 @@ func loadOpencodeRows(
 	ctx context.Context,
 	db *sql.DB,
 	dbPath, query string,
-	parse func(timeCreated int64, data string) (usage.Record, bool),
+	parse func(timeCreated int64, data, session, project string) (usage.Record, bool),
 ) ([]usage.Record, error) {
 	rows, err := db.QueryContext(ctx, query)
 	if err != nil {
@@ -193,12 +253,14 @@ func loadOpencodeRows(
 		var (
 			timeCreated int64
 			data        string
+			session     string
+			project     string
 		)
-		if err := rows.Scan(&timeCreated, &data); err != nil {
+		if err := rows.Scan(&timeCreated, &data, &session, &project); err != nil {
 			return nil, fmt.Errorf("scan %s: %w", dbPath, err)
 		}
 
-		rec, ok := parse(timeCreated, data)
+		rec, ok := parse(timeCreated, data, session, project)
 		if !ok {
 			continue
 		}
@@ -215,7 +277,7 @@ func loadOpencodeRows(
 //
 // It returns false when the row must be ignored: the payload is not valid
 // JSON or it carries no token at all.
-func parseOpencodeMessage(timeCreated int64, data string) (usage.Record, bool) {
+func parseOpencodeMessage(timeCreated int64, data, session, project string) (usage.Record, bool) {
 	var msg opencodeMessage
 	if err := json.Unmarshal([]byte(data), &msg); err != nil {
 		return usage.Record{}, false
@@ -232,6 +294,8 @@ func parseOpencodeMessage(timeCreated int64, data string) (usage.Record, bool) {
 		CacheRead:  msg.Tokens.Cache.Read,
 		CacheWrite: msg.Tokens.Cache.Write,
 		Cost:       msg.Cost,
+		Session:    session,
+		Project:    project,
 	}
 
 	if rec.Input == 0 && rec.Output == 0 && rec.Reasoning == 0 &&
@@ -246,7 +310,7 @@ func parseOpencodeMessage(timeCreated int64, data string) (usage.Record, bool) {
 //
 // It returns false when the row must be ignored: the payload is not valid
 // JSON or it carries no token at all.
-func parseOpencodeSessionMessage(timeCreated int64, data string) (usage.Record, bool) {
+func parseOpencodeSessionMessage(timeCreated int64, data, session, project string) (usage.Record, bool) {
 	var msg opencodeSessionMessage
 	if err := json.Unmarshal([]byte(data), &msg); err != nil {
 		return usage.Record{}, false
@@ -263,6 +327,8 @@ func parseOpencodeSessionMessage(timeCreated int64, data string) (usage.Record, 
 		CacheRead:  msg.Tokens.Cache.Read,
 		CacheWrite: msg.Tokens.Cache.Write,
 		Cost:       msg.Cost,
+		Session:    session,
+		Project:    project,
 	}
 
 	if rec.Input == 0 && rec.Output == 0 && rec.Reasoning == 0 &&

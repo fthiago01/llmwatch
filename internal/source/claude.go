@@ -30,7 +30,13 @@ const (
 // claudeEntry is the subset of a transcript line that carries usage data.
 type claudeEntry struct {
 	Timestamp string `json:"timestamp"`
-	Message   struct {
+	// SessionID identifies the session the line belongs to. It is empty
+	// when the line does not carry one.
+	SessionID string `json:"sessionId"`
+	// Cwd is the working directory of the session. It is empty when the
+	// line does not carry one.
+	Cwd     string `json:"cwd"`
+	Message struct {
 		ID    string `json:"id"`
 		Model string `json:"model"`
 		Usage *struct {
@@ -301,6 +307,8 @@ func parseClaudeLine(line []byte) (usage.Record, string) {
 		CacheWrite: entry.Message.Usage.CacheCreationInputTokens,
 		CacheRead:  entry.Message.Usage.CacheReadInputTokens,
 		Cost:       0,
+		Session:    entry.SessionID,
+		Project:    entry.Cwd,
 	}, entry.Message.ID
 }
 
