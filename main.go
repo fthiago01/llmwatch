@@ -209,7 +209,7 @@ func cmdServe(ctx context.Context) int {
 
 	errCh := make(chan error, 1)
 	go func() {
-		log.Printf("listening on http://%s", addr)
+		log.Printf("listening on %s", displayURL(addr))
 		if err := httpSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			errCh <- err
 			return

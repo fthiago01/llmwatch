@@ -151,29 +151,22 @@
     max-width: 100%;
   }
 
+  /* The board uses the whole width of the screen: there is no max width,
+     only the side padding that keeps the panels off the edges. */
   .wrap {
+    width: 100%;
     max-width: none;
     margin: 0;
-    padding: 12px;
-    padding-left: max(12px, env(safe-area-inset-left));
-    padding-right: max(12px, env(safe-area-inset-right));
+    padding: 12px 16px;
+    padding-left: max(16px, env(safe-area-inset-left));
+    padding-right: max(16px, env(safe-area-inset-right));
     min-width: 0;
   }
 
-  .leftcol {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    min-height: 0;
-  }
-
-  /* The heatmap and the projects share a row of their own. */
-  .heatrow {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    min-width: 0;
-  }
+  /* The board is a plain grid: every section is a direct child of .wrap and
+     is placed by the grid areas of each breakpoint. There is no wrapper
+     column, so a panel can be moved to any row without touching the
+     markup. */
 
   header {
     display: flex;
@@ -462,13 +455,136 @@
     letter-spacing: 0.08em;
     text-transform: uppercase;
     color: var(--faint);
-    margin: 0 0 10px;
+    margin: 0 0 8px;
   }
 
   .cards {
     display: grid;
     grid-template-columns: 1fr;
     gap: 12px;
+  }
+
+  /* The 5h block: one card per provider, side by side when they fit. The
+     cards stay compact, so the row is never a tall stack. */
+  #blocks {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+    align-items: stretch;
+  }
+
+  /* The block panel is a column: the cards stack inside it when they do
+     not fit side by side, and the panel fills the height of the row. */
+  #blocksSection {
+    display: flex;
+    flex-direction: column;
+  }
+
+  #blocks {
+    flex: 1 1 auto;
+  }
+
+  #blocks .card {
+    padding: 10px 12px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto auto auto;
+    align-items: baseline;
+    gap: 2px 10px;
+  }
+
+  /* The provider name and its total share the first line. */
+  #blocks .card h3 {
+    grid-column: 1;
+    grid-row: 1;
+    margin: 0;
+    font-size: 13px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  #blocks .big {
+    grid-column: 2;
+    grid-row: 1;
+    font-size: 18px;
+    margin: 0;
+    text-align: right;
+  }
+
+  /* The metrics of the block live in two columns of pairs: the usage on
+     the left and the times on the right. Each pair keeps its label next
+     to its value, so the card never grows into a tall stack. */
+  #blocks .kv {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    display: grid;
+    grid-template-columns: minmax(0, auto) minmax(0, 1fr) minmax(0, auto) minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    gap: 3px 6px;
+    font-size: 12px;
+    margin: 5px 0 0;
+  }
+
+  #blocks .kv dt {
+    color: var(--muted);
+    font-size: 10px;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    /* The label never grows past the space of half a metric. */
+    max-width: 68px;
+  }
+
+  #blocks .kv dd {
+    margin: 0;
+    text-align: right;
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* The pairs: requests and tokens/min on the first line, the start and
+     the reset on the second one. The label and its value share the same
+     line, so a pair never splits in two. */
+  #blocks .kv > dt:nth-of-type(1) { grid-area: 1 / 1; }
+  #blocks .kv > dd:nth-of-type(1) { grid-area: 1 / 2; }
+  #blocks .kv > dt:nth-of-type(2) { grid-area: 1 / 3; }
+  #blocks .kv > dd:nth-of-type(2) { grid-area: 1 / 4; }
+  #blocks .kv > dt:nth-of-type(3) { grid-area: 2 / 1; }
+  #blocks .kv > dd:nth-of-type(3) { grid-area: 2 / 2; }
+  #blocks .kv > dt:nth-of-type(4) { grid-area: 2 / 3; }
+  #blocks .kv > dd:nth-of-type(4) { grid-area: 2 / 4; }
+
+  /* The two progress bars of the block take the last rows of the card.
+     The label shares the row with the bar, so the pair is one line. */
+  #blocks .barlabel {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 5px;
+    font-size: 9.5px;
+    line-height: 1.2;
+  }
+
+  #blocks .barlabel > span:first-child {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  #blocks .barlabel > span:last-child {
+    margin-left: auto;
+  }
+
+  #blocks .bar {
+    grid-column: 1 / -1;
+    height: 4px;
+    margin-top: 2px;
   }
 
   .card {
@@ -487,7 +603,20 @@
   #kpiSection .kpis {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 14px;
+    gap: 12px;
+    align-items: stretch;
+  }
+
+  /* The KPI section fills the height of its row, so the cards grow with it
+     instead of leaving a hole under them. */
+  #kpiSection {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  #kpiSection .kpis {
+    flex: 1 1 auto;
   }
 
   .card.kpi {
@@ -495,6 +624,8 @@
     position: relative;
     overflow: hidden;
     min-width: 0;
+    display: flex;
+    flex-direction: column;
   }
 
   .card.kpi::after {
@@ -555,27 +686,32 @@
     margin: 10px -20px 0;
     position: relative;
     z-index: 1;
+    /* The sparkline sits at the bottom of the card, so the card can grow
+       with the row without leaving the chart floating in the middle. */
+    margin-top: auto;
   }
 
   .glow-line {
     opacity: calc(var(--glow) * 0.8);
   }
 
-  /* The heatmap: a honeycomb with one column per week. The drawing keeps
-     its own size, so the hexagons never stretch on a wide panel. */
+  /* The heatmap: a honeycomb with one column per week. The drawing scales
+     to the width of the card and never grows past its own height, so the
+     hexagons are never cut. */
   #heatSection .heat {
-    padding: 20px 22px;
+    padding: 12px 14px;
   }
 
   #heatSection .sub {
-    margin: 2px 0 14px;
+    margin: 2px 0 10px;
   }
 
   #heat {
     display: block;
     width: 100%;
-    max-width: 640px;
+    max-width: 100%;
     height: auto;
+    max-height: 260px;
   }
 
   .cell-empty {
@@ -595,12 +731,13 @@
   /* -------------------------------------------------- projects and sessions */
 
   /* The project card: one row per project, with its own color, a bar and
-     the number of tokens of the last thirty days. */
+     the number of tokens of the last thirty days. The name and the value
+     share the same line and the thin bar runs below them. */
   #projectSection .plist {
-    padding: 14px 22px 18px;
+    padding: 8px 12px 10px;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 5px;
   }
 
   #projectSection .prow {
@@ -608,7 +745,7 @@
     grid-template-columns: 8px minmax(0, 1fr) auto;
     grid-template-rows: auto auto;
     align-items: center;
-    gap: 4px 10px;
+    gap: 1px 8px;
     min-width: 0;
   }
 
@@ -626,19 +763,22 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    font-size: 13px;
   }
 
+  /* The bar sits under the whole row and is as thin as a hair line. */
   #projectSection .prow .pbar {
-    grid-column: 2;
+    grid-column: 1 / -1;
     grid-row: 2;
-    height: 3px;
+    height: 2px;
+    margin-left: 16px;
     border-radius: 2px;
     background: linear-gradient(90deg, var(--c), transparent);
   }
 
   #projectSection .prow .pval {
     grid-column: 3;
-    grid-row: 1 / 3;
+    grid-row: 1;
     font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
     font-variant-numeric: tabular-nums;
     letter-spacing: -0.03em;
@@ -646,12 +786,18 @@
     text-align: right;
     white-space: nowrap;
     align-self: center;
+    font-size: 12px;
   }
 
   /* The sessions card: a header with the counter and the search, then the
-     table of the sessions of the last thirty days. */
+     table of the sessions of the last thirty days. The list lives inside
+     the panel of the board, so it does not draw a card of its own. */
   #sessionSection .list {
-    padding: 20px 0 6px;
+    padding: 0;
+    background: none;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
   }
 
   #sessionSection .list-head {
@@ -659,7 +805,7 @@
     justify-content: space-between;
     align-items: center;
     gap: 12px;
-    padding: 0 22px 14px;
+    padding: 0 0 12px;
     flex-wrap: wrap;
   }
 
@@ -971,17 +1117,20 @@
   }
   .totals > div {
     background: var(--panel);
-    padding: 10px 12px;
+    padding: 7px 10px;
   }
   .totals .lbl {
-    font-size: 11px;
+    font-size: 10.5px;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.08em;
     color: var(--faint);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .totals .val {
-    font-size: 18px;
+    font-size: 17px;
     font-weight: 650;
     letter-spacing: -0.03em;
   }
@@ -1150,11 +1299,11 @@
     background: var(--panel);
     border: 1px solid var(--border);
     border-radius: 22px;
-    padding: 13px 14px;
+    padding: 11px 12px;
     box-shadow: var(--shadow);
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 8px;
     min-width: 0;
   }
 
@@ -1247,32 +1396,35 @@
     display: inline-block;
   }
 
-  .qwin {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
+  /* The quota windows are laid out side by side when they fit, and stack
+     when the card is too narrow for them. */
+  .qwindows {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+    gap: 8px;
     min-width: 0;
   }
 
-  .qwin + .qwin {
-    border-top: 0;
-    padding-top: 0;
-  }
-
-  /* The quota windows are laid out side by side in two columns. */
-  .qwindows {
+  /* The name of the window and the remaining amount share the first line,
+     so a window is as short as a bar and a footnote. */
+  .qwin {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto auto auto;
+    align-items: baseline;
+    gap: 2px 8px;
     min-width: 0;
   }
 
   .qwinhead {
+    grid-column: 1 / -1;
+    grid-row: 1;
     display: flex;
     align-items: baseline;
     justify-content: space-between;
     gap: 10px;
-    font-size: 12.5px;
+    font-size: 12px;
+    min-width: 0;
   }
   .qwinhead .wname {
     color: var(--text);
@@ -1281,15 +1433,54 @@
   }
 
   .qleft {
-    font-size: 21px;
+    grid-column: 1 / -1;
+    grid-row: 2;
+    font-size: 16px;
     font-weight: 650;
     letter-spacing: -0.03em;
     white-space: nowrap;
     color: var(--text);
+    margin: 0;
+  }
+
+  /* The bar of a quota window is thinner, so two windows fit in a card
+     without growing it. */
+  .qwin .bar {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    height: 5px;
+    margin-top: 3px;
+  }
+
+  /* The usage and the reset countdown of a window share the last row. They
+     stay on one line and the countdown gives way first when the window is
+     narrow. */
+  .qfoot {
+    grid-column: 1 / -1;
+    grid-row: 4;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
+    font-size: 10.5px;
+    line-height: 1.35;
+  }
+
+  .qfoot > .qmeta {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .qfoot > .qmeta:last-child {
+    flex: 1 1 auto;
+    text-align: right;
   }
 
   .qmeta {
-    font-size: 11.5px;
+    font-size: 11px;
     color: var(--muted);
     overflow-wrap: anywhere;
   }
@@ -1318,125 +1509,449 @@
 
   /* --------------------------------------------------------------- layout */
 
-  /* The intermediate band: the page scrolls normally and the dashboard is
-     arranged in two columns, the limits on top and the panels side by side
-     below. */
-  @media (min-width: 700px) and (max-width: 1099px) {
-    /* The limits fill the width in a fluid grid. The track is capped so a
-       single card does not stretch across the whole screen. */
-    #quotas {
-      grid-template-columns: repeat(auto-fit, minmax(300px, 480px));
-    }
+  /* The board is one CSS grid with named areas: every section is a direct
+     child of .wrap and is placed by the areas of the current breakpoint.
+     There is no wrapper column, so a panel can move to any row without
+     touching the markup. The board never has a max width: it uses the whole
+     screen and only the gap and the side padding keep it readable. */
 
-    /* Below the limits: the 5h block and the chart on the left, the window
-       panel on the right, the heatmap and the projects under them and the
-       sessions across the whole width. */
+  /* The panels of the board are cards of their own. The rule is shared by
+     every breakpoint, so a panel always looks like a card. */
+  #quotaSection,
+  #blocksSection,
+  #chartSection,
+  #heatSection,
+  #projectSection,
+  #windowSection,
+  #sessionSection {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 22px;
+    box-shadow: var(--shadow);
+    padding: 14px;
+    margin: 0;
+    min-width: 0;
+  }
+
+  /* The window panel keeps the tabs, the totals and the table together. */
+  #windowSection {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  #windowSection .tabs {
+    align-self: flex-start;
+    flex: none;
+  }
+
+  /* The totals are laid out in a fluid grid, so they take a single line on
+     a wide panel and wrap only when the panel is narrow. The track is
+     narrow enough for the seven cells to share one line on a wide panel. */
+  .totals {
+    grid-template-columns: repeat(auto-fit, minmax(78px, 1fr));
+    grid-auto-flow: row;
+    grid-auto-columns: auto;
+    flex: none;
+  }
+
+  /* The table scrolls sideways inside its own container. */
+  .tablewrap {
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* The footer clears the home indicator. */
+  .credit {
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
+  }
+
+  /* ------------------------------------------------------- wide desktop */
+
+  /* From 1500px the board has twelve columns and four bands: the header,
+     the KPIs next to the limits, the panels of the second band and the
+     heatmap, the projects and the sessions of the last one. */
+  @media (min-width: 1500px) {
     .wrap {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      grid-template-columns: repeat(12, minmax(0, 1fr));
       grid-template-areas:
-        "header header"
-        "kpis kpis"
-        "quotas quotas"
-        "left window"
-        "heatrow heatrow"
-        "sessions sessions"
-        "footer footer";
-      gap: 14px;
-      align-items: start;
+        "header header header header header header header header header header header header"
+        "kpis kpis kpis kpis kpis kpis kpis kpis quotas quotas quotas quotas"
+        "blocks blocks blocks chart chart chart chart chart window window window window"
+        "heat heat heat heat projects projects projects sessions sessions sessions sessions sessions"
+        "footer footer footer footer footer footer footer footer footer footer footer footer";
+      gap: 12px;
+      align-items: stretch;
+      padding: 16px 20px;
+      padding-left: max(20px, env(safe-area-inset-left));
+      padding-right: max(20px, env(safe-area-inset-right));
+      padding-bottom: max(20px, env(safe-area-inset-bottom));
     }
 
     header { grid-area: header; }
     #kpiSection { grid-area: kpis; }
     #quotaSection { grid-area: quotas; }
-    .leftcol { grid-area: left; }
+    #blocksSection { grid-area: blocks; }
+    #chartSection { grid-area: chart; }
     #windowSection { grid-area: window; }
-    .heatrow { grid-area: heatrow; }
+    #heatSection { grid-area: heat; }
+    #projectSection { grid-area: projects; }
     #sessionSection { grid-area: sessions; }
     .credit { grid-area: footer; }
 
-    /* The heatmap and the projects share a row of their own. */
-    .heatrow {
-      display: grid;
-      grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
-      gap: 14px;
-      align-items: start;
-      min-width: 0;
-    }
-
-    /* The panels become cards of their own. */
-    #quotaSection,
-    #blocksSection,
-    #chartSection,
-    #heatSection,
-    #projectSection,
-    #windowSection,
-    #sessionSection {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 22px;
-      box-shadow: var(--shadow);
-      padding: 12px;
+    /* The header has no extra margin: the gap of the grid does the job. */
+    header {
       margin: 0;
       min-width: 0;
     }
 
-    /* The window panel keeps the tabs, the totals and the table together. */
-    #windowSection {
-      display: flex;
-      flex-direction: column;
-      min-width: 0;
+    h1 {
+      font-size: 24px;
+      white-space: nowrap;
     }
 
-    #windowSection .tabs {
-      align-self: flex-start;
-      flex: none;
+    /* The KPI row keeps the four cards of the board in a single line. */
+    #kpiSection .kpis {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
     }
 
-    /* The totals are laid out in three columns. */
-    .totals {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      grid-auto-flow: row;
-      grid-auto-columns: auto;
-      flex: none;
-    }
-
-    /* The table scrolls inside its own container. */
-    .tablewrap {
-      overflow-x: auto;
-      -webkit-overflow-scrolling: touch;
+    /* The limits fill their column in a fluid grid. */
+    #quotas {
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
     }
 
     /* The chart keeps a readable height. */
-    #chart { height: 240px; }
+    #chart { height: 220px; }
     .chart { padding: 12px 10px 8px; }
 
-    /* The key/values of the 5h block use two columns. */
-    #blocks .kv {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      grid-template-rows: auto auto auto auto;
-      grid-auto-flow: row;
+    /* The panels of the same row share the same height. */
+    #blocksSection,
+    #chartSection,
+    #windowSection,
+    #heatSection,
+    #projectSection,
+    #sessionSection {
+      align-self: stretch;
     }
 
-    /* The footer clears the home indicator. */
-    .credit {
-      padding-bottom: max(8px, env(safe-area-inset-bottom));
+    /* The sessions card fills the height of the last band, so the table
+       scrolls inside it instead of pushing the page down. The cap keeps
+       the band short: the row is as tall as the heatmap and the projects,
+       never more than a little. */
+    #sessionSection {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      min-height: 320px;
+      max-height: 380px;
+    }
+
+    #sessionSection .list {
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      flex: 1 1 auto;
+    }
+
+    #sessionSection .list-head {
+      padding: 0 0 12px;
+      flex: none;
+    }
+
+    /* The body of the table scrolls inside the card and the header of the
+       table stays pinned to the top of it. */
+    #sessionSection .table-wrap {
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+      min-height: 0;
+      flex: 1 1 auto;
+    }
+
+    #sessionSection table {
+      font-size: 12px;
+      min-width: 620px;
+    }
+
+    #sessionSection th,
+    #sessionSection td {
+      padding: 6px 9px;
+    }
+
+    #sessionSection thead th {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background: var(--panel-alt);
+    }
+
+    #sessionSection .more {
+      width: 100%;
+      margin: 8px 0 0;
+      padding: 6px 12px;
+      font-size: 12px;
+      flex: none;
     }
   }
 
-  /* Below 700px the dashboard is a single column: the header collapses to
-     two lines and every section stacks in the reading order. */
+  /* ------------------------------------------------------ medium desktop */
+
+  /* Between 1100px and 1499px the board has two columns: the header and
+     the KPIs across the full width, then the pairs of panels and the
+     sessions at the bottom. */
+  @media (min-width: 1100px) and (max-width: 1499px) {
+    .wrap {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-areas:
+        "header header"
+        "kpis kpis"
+        "quotas blocks"
+        "chart window"
+        "heat projects"
+        "sessions sessions"
+        "footer footer";
+      gap: 12px;
+      align-items: stretch;
+    }
+
+    header { grid-area: header; }
+    #kpiSection { grid-area: kpis; }
+    #quotaSection { grid-area: quotas; }
+    #blocksSection { grid-area: blocks; }
+    #chartSection { grid-area: chart; }
+    #windowSection { grid-area: window; }
+    #heatSection { grid-area: heat; }
+    #projectSection { grid-area: projects; }
+    #sessionSection { grid-area: sessions; }
+    .credit { grid-area: footer; }
+
+    header {
+      margin: 0;
+      min-width: 0;
+    }
+
+    /* The four KPI cards stay in a single line. */
+    #kpiSection .kpis {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    /* The limits fill their column in a fluid grid. */
+    #quotas {
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    }
+
+    #chart { height: 220px; }
+    .chart { padding: 12px 10px 8px; }
+
+    /* The panels of the same row share the same height. */
+    #blocksSection,
+    #chartSection,
+    #windowSection,
+    #heatSection,
+    #projectSection,
+    #sessionSection {
+      align-self: stretch;
+    }
+
+    /* The sessions card has a bounded height and its table scrolls inside
+       it, so a long list never makes the page grow. */
+    #sessionSection {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      min-height: 320px;
+      max-height: 380px;
+    }
+
+    #sessionSection .list {
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      flex: 1 1 auto;
+    }
+
+    #sessionSection .list-head {
+      padding: 0 0 12px;
+      flex: none;
+    }
+
+    #sessionSection .table-wrap {
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+      min-height: 0;
+      flex: 1 1 auto;
+    }
+
+    #sessionSection table {
+      font-size: 12px;
+      min-width: 620px;
+    }
+
+    #sessionSection th,
+    #sessionSection td {
+      padding: 6px 9px;
+    }
+
+    #sessionSection thead th {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background: var(--panel-alt);
+    }
+
+    #sessionSection .more {
+      width: 100%;
+      margin: 8px 0 0;
+      padding: 6px 12px;
+      font-size: 12px;
+      flex: none;
+    }
+  }
+
+  /* ------------------------------------------------------------- tablet */
+
+  /* Between 700px and 1099px the board keeps two columns where a pair
+     fits and stacks the rest: the KPIs in two lines, the heatmap next to
+     the projects and everything else in a single column. */
+  @media (min-width: 700px) and (max-width: 1099px) {
+    .wrap {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-areas:
+        "header header"
+        "kpis kpis"
+        "quotas quotas"
+        "blocks chart"
+        "window window"
+        "heat projects"
+        "sessions sessions"
+        "footer footer";
+      gap: 12px;
+      align-items: stretch;
+    }
+
+    header { grid-area: header; }
+    #kpiSection { grid-area: kpis; }
+    #quotaSection { grid-area: quotas; }
+    #blocksSection { grid-area: blocks; }
+    #chartSection { grid-area: chart; }
+    #windowSection { grid-area: window; }
+    #heatSection { grid-area: heat; }
+    #projectSection { grid-area: projects; }
+    #sessionSection { grid-area: sessions; }
+    .credit { grid-area: footer; }
+
+    header {
+      margin: 0;
+      min-width: 0;
+    }
+
+    /* The KPIs are two by two. */
+    #kpiSection .kpis {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    /* The limits fill the width in a fluid grid. The track is capped so a
+       single card does not stretch across the whole screen. */
+    #quotas {
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    }
+
+    #chart { height: 220px; }
+    .chart { padding: 12px 10px 8px; }
+
+    #blocksSection,
+    #chartSection,
+    #windowSection,
+    #heatSection,
+    #projectSection,
+    #sessionSection {
+      align-self: stretch;
+    }
+
+    /* The sessions card has a bounded height and its table scrolls inside
+       it, so a long list never makes the page grow. */
+    #sessionSection {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      min-height: 320px;
+      max-height: 380px;
+    }
+
+    #sessionSection .list {
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      flex: 1 1 auto;
+    }
+
+    #sessionSection .list-head {
+      padding: 0 0 12px;
+      flex: none;
+    }
+
+    #sessionSection .table-wrap {
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+      min-height: 0;
+      flex: 1 1 auto;
+    }
+
+    #sessionSection table {
+      font-size: 12px;
+      min-width: 620px;
+    }
+
+    #sessionSection th,
+    #sessionSection td {
+      padding: 6px 9px;
+    }
+
+    #sessionSection thead th {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background: var(--panel-alt);
+    }
+
+    #sessionSection .more {
+      width: 100%;
+      margin: 8px 0 0;
+      padding: 6px 12px;
+      font-size: 12px;
+      flex: none;
+    }
+  }
+
+  /* ------------------------------------------------------------- mobile */
+
+  /* Below 700px the board is a single column in the reading order: the
+     KPIs, the limits, the window, the sessions, the 5h block and the chart,
+     then the heatmap and the projects. */
   @media (max-width: 699px) {
     h1 { font-size: 22px; }
     .big { font-size: 22px; }
 
+    .wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
     /* Line 1: the brand, the status dot and the age of the snapshot.
-       Line 2: the navigation, which scrolls sideways when it does not fit. */
+       Line 2: the navigation, whose buttons break to a new line instead
+       of scrolling sideways. */
     header {
       flex-wrap: wrap;
       align-items: center;
       gap: 8px 10px;
-      margin-bottom: 14px;
+      margin-bottom: 0;
     }
 
     .brand {
@@ -1450,38 +1965,24 @@
       min-width: 0;
     }
 
+    /* The navigation wraps: the buttons share the lines of the header and
+       never push the page sideways. */
     .header-nav {
       flex: 1 1 100%;
-      gap: 10px;
-      overflow-x: auto;
-      overflow-y: hidden;
-      scrollbar-width: thin;
-      -webkit-overflow-scrolling: touch;
-      padding-bottom: 2px;
+      flex-wrap: wrap;
+      gap: 8px;
+      overflow: visible;
+      min-width: 0;
     }
 
-    /* The navigation never wraps its labels into two lines. */
     .header-nav a,
     .header-nav button:not(.theme-toggle) {
       white-space: nowrap;
       flex: none;
     }
 
-    /* One column: limits, window, 5h block and chart. */
-    .cards { grid-template-columns: 1fr; }
-
-    /* The reading order on a small screen is: the KPIs, the limits, the
-       window panel, the sessions, the 5h block and the chart. */
-    .wrap {
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-    }
-
     /* The gap of the column replaces the margin of the sections. */
     .wrap > section,
-    .wrap > .leftcol,
-    .wrap > .heatrow,
     .wrap > header,
     .wrap > footer.credit {
       margin-bottom: 0;
@@ -1491,30 +1992,21 @@
     .wrap > #quotaSection { order: 2; }
     .wrap > #windowSection { order: 3; }
     .wrap > #sessionSection { order: 4; }
-    .wrap > .leftcol { order: 5; }
-    .wrap > .heatrow { order: 6; }
-    .wrap > footer.credit { order: 7; }
+    .wrap > #blocksSection { order: 5; }
+    .wrap > #chartSection { order: 6; }
+    .wrap > #heatSection { order: 7; }
+    .wrap > #projectSection { order: 8; }
+    .wrap > footer.credit { order: 9; }
 
-    /* The 5h block comes before the chart inside the left column. */
-    .leftcol {
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-    }
-
-    .leftcol > section {
-      margin-bottom: 0;
-    }
-
-    .leftcol > #blocksSection { order: 1; }
-    .leftcol > #chartSection { order: 2; }
-
-    /* The heatmap and the projects stack in a single column. */
-    .heatrow {
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-      min-width: 0;
+    /* The panels of the board get their own padding on a phone. */
+    #quotaSection,
+    #blocksSection,
+    #chartSection,
+    #heatSection,
+    #projectSection,
+    #windowSection,
+    #sessionSection {
+      padding: 12px;
     }
 
     /* The totals are readable in two columns. */
@@ -1525,25 +2017,6 @@
     /* The chart keeps a fixed height on small screens. */
     #chart { height: 220px; }
     .chart { padding: 12px 10px 8px; }
-
-    /* The key/values of the 5h block use two columns. */
-    #blocks .kv {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      grid-template-rows: auto auto auto auto;
-      grid-auto-flow: row;
-    }
-
-    /* The heatmap and the projects are panels of their own. */
-    #heatSection,
-    #projectSection {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 22px;
-      box-shadow: var(--shadow);
-      padding: 12px;
-      margin: 0;
-      min-width: 0;
-    }
 
     #projectSection .card {
       padding: 0;
@@ -1571,6 +2044,50 @@
     }
 
     tbody tr:hover td:first-child { background: var(--panel-alt); }
+
+    /* The sessions card scrolls inside itself, so a long table never makes
+       the page grow without bound. */
+    #sessionSection {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      max-height: 480px;
+    }
+
+    #sessionSection .list {
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      flex: 1 1 auto;
+    }
+
+    #sessionSection .list-head {
+      padding: 0 0 12px;
+      flex: none;
+    }
+
+    #sessionSection .table-wrap {
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+      min-height: 0;
+      flex: 1 1 auto;
+    }
+
+    #sessionSection thead th {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background: var(--panel-alt);
+    }
+
+    #sessionSection .more {
+      width: 100%;
+      margin: 8px 0 0;
+      padding: 6px 12px;
+      font-size: 12px;
+      flex: none;
+    }
 
     /* The footer flows with the page and clears the home indicator. */
     .credit {
@@ -1604,210 +2121,17 @@
     }
   }
 
-  /* The KPI row follows the ponytail board: four columns on a wide screen,
-     two on a medium one and a single column on a phone. */
-  @media (max-width: 1360px) {
+  /* The KPI row follows the ponytail board: four columns on a wide
+     screen, two by two on a medium one and a single column on a phone. */
+  @media (max-width: 1099px) {
     #kpiSection .kpis {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
 
-  @media (max-width: 520px) {
+  @media (max-width: 419px) {
     #kpiSection .kpis {
       grid-template-columns: minmax(0, 1fr);
-    }
-  }
-
-  /* --------------------------------------------------- desktop dashboard */
-
-  /* Above 1100px the dashboard is a board that scrolls with the page: the
-     panels keep their natural height and nothing is clipped. The grid has
-     three bands below the header: the KPIs, the quotas, then the panels in
-     two columns, the heatmap next to the projects and the sessions across
-     the whole width. */
-  @media (min-width: 1100px) {
-    /* The board is centered and never wider than the screen. */
-    .wrap {
-      width: 100%;
-      max-width: 1400px;
-      margin: 0 auto;
-      padding: 16px 20px;
-      padding-left: max(20px, env(safe-area-inset-left));
-      padding-right: max(20px, env(safe-area-inset-right));
-      padding-bottom: max(20px, env(safe-area-inset-bottom));
-      box-sizing: border-box;
-      display: grid;
-      gap: 14px;
-      align-items: start;
-
-      /* The band of the panels: the 5h block and the chart on the left, the
-         window on the right. */
-      grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
-      grid-template-areas:
-        "header header"
-        "kpis kpis"
-        "quotas quotas"
-        "left window"
-        "heatrow heatrow"
-        "sessions sessions"
-        "footer footer";
-    }
-
-    header {
-      margin: 0;
-      min-width: 0;
-      grid-area: header;
-    }
-
-    h1 {
-      font-size: 24px;
-      white-space: nowrap;
-    }
-
-    /* The panels become cards of their own. */
-    #quotaSection,
-    #blocksSection,
-    #chartSection,
-    #heatSection,
-    #projectSection,
-    #windowSection,
-    #sessionSection {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 22px;
-      box-shadow: var(--shadow);
-      padding: 14px;
-      margin: 0;
-      min-width: 0;
-    }
-
-    /* The limits fill the width in a fluid grid. The track is capped so a
-       single card does not stretch across the whole screen. */
-    #quotas {
-      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    }
-
-    /* The KPI row keeps the four cards of the board. */
-    #kpiSection .kpis {
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-    }
-
-    #kpiSection { grid-area: kpis; }
-    #quotaSection { grid-area: quotas; }
-    #sessionSection { grid-area: sessions; }
-    .credit { grid-area: footer; }
-
-    /* The window panel keeps the tabs, the totals and the table together. */
-    #windowSection {
-      grid-area: window;
-      display: flex;
-      flex-direction: column;
-      min-width: 0;
-    }
-
-    #windowSection .tabs {
-      align-self: flex-start;
-      flex: none;
-    }
-
-    /* The totals are laid out in three columns. */
-    .totals {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      grid-auto-flow: row;
-      grid-auto-columns: auto;
-      flex: none;
-    }
-
-    /* The table scrolls sideways inside its own container. */
-    .tablewrap {
-      overflow-x: auto;
-      overflow-y: hidden;
-      -webkit-overflow-scrolling: touch;
-    }
-
-    /* The chart keeps a readable height. */
-    #chart { height: 240px; }
-    .chart { padding: 12px 10px 8px; }
-
-    /* The key/values of the 5h block use two columns. */
-    #blocks .kv {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      grid-template-rows: auto auto auto auto;
-      grid-auto-flow: row;
-    }
-
-    /* The footer clears the home indicator. */
-    .credit {
-      padding-bottom: max(8px, env(safe-area-inset-bottom));
-    }
-
-    /* The left column stacks the 5h block and the chart. */
-    .leftcol {
-      grid-area: left;
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-      min-width: 0;
-    }
-
-    .leftcol > section {
-      margin: 0;
-    }
-
-    /* The heatmap and the projects share a row of their own, with the
-       honeycomb taking the larger part of it. */
-    .heatrow {
-      grid-area: heatrow;
-      display: grid;
-      grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
-      gap: 14px;
-      align-items: start;
-      min-width: 0;
-    }
-
-    #heatSection,
-    #projectSection {
-      align-self: start;
-      min-width: 0;
-    }
-
-    /* The sessions panel: the header with the search, then the table that
-       scrolls sideways. */
-    #sessionSection {
-      display: flex;
-      flex-direction: column;
-      min-width: 0;
-    }
-
-    #sessionSection .list {
-      padding: 4px 0 0;
-    }
-
-    #sessionSection .list-head {
-      padding: 0 8px 12px;
-    }
-
-    #sessionSection .table-wrap {
-      overflow-x: auto;
-      overflow-y: hidden;
-      -webkit-overflow-scrolling: touch;
-    }
-
-    #sessionSection table {
-      font-size: 12px;
-      min-width: 620px;
-    }
-
-    #sessionSection th,
-    #sessionSection td {
-      padding: 6px 9px;
-    }
-
-    #sessionSection .more {
-      width: calc(100% - 16px);
-      margin: 8px 8px 2px;
-      padding: 6px 12px;
-      font-size: 12px;
     }
   }
 </style>
@@ -1864,38 +2188,34 @@
     <p class="empty" id="quotasEmpty" hidden>Nenhum limite configurado — <a href="/admin">cadastre em Admin</a></p>
   </section>
 
-  <div class="leftcol">
-    <section id="blocksSection">
-      <h2>Bloco de 5h (estimado pelos tokens locais)</h2>
-      <div class="cards" id="blocks"></div>
-      <p class="empty" id="blocksEmpty" hidden>nenhum bloco ativo</p>
-    </section>
+  <section id="blocksSection">
+    <h2>Bloco de 5h (estimado pelos tokens locais)</h2>
+    <div class="cards" id="blocks"></div>
+    <p class="empty" id="blocksEmpty" hidden>nenhum bloco ativo</p>
+  </section>
 
-    <section id="chartSection">
-      <h2>Últimas 24h</h2>
-      <div class="chart">
-        <div id="chart"></div>
-        <div class="legend" id="legend"></div>
-      </div>
-    </section>
-  </div>
+  <section id="chartSection">
+    <h2>Últimas 24h</h2>
+    <div class="chart">
+      <div id="chart"></div>
+      <div class="legend" id="legend"></div>
+    </div>
+  </section>
 
-  <div class="heatrow">
-    <section id="heatSection" hidden>
-      <h2>Atividade — 12 semanas</h2>
-      <div class="heat">
-        <p class="sub muted" id="heatSub"></p>
-        <svg id="heat" role="img" aria-label="Atividade diária de tokens nas últimas 12 semanas"></svg>
-      </div>
-    </section>
+  <section id="heatSection" hidden>
+    <h2>Atividade — 12 semanas</h2>
+    <div class="heat">
+      <p class="sub muted" id="heatSub"></p>
+      <svg id="heat" role="img" preserveAspectRatio="xMidYMid meet" aria-label="Atividade diária de tokens nas últimas 12 semanas"></svg>
+    </div>
+  </section>
 
-    <section id="projectSection" hidden>
-      <h2>Projetos</h2>
-      <div class="card">
-        <div class="plist" id="projectList"></div>
-      </div>
-    </section>
-  </div>
+  <section id="projectSection" hidden>
+    <h2>Projetos</h2>
+    <div class="card">
+      <div class="plist" id="projectList"></div>
+    </div>
+  </section>
 
   <section id="windowSection">
     <h2>Janela</h2>
@@ -4158,9 +4478,10 @@
       svg.appendChild(label);
     }
 
-    // The labels of the X axis, one every three hours to avoid crowding.
+    // The labels of the X axis, at least three hours and ~42px apart so narrow screens do not overlap them.
+    var labelStep = Math.max(3, Math.ceil(42 * buckets.length / plotW));
     buckets.forEach(function (bucket, i) {
-      if (i % 3 !== 0) return;
+      if (i % labelStep !== 0) return;
       var hourText = svgEl("text", {
         x: x(i).toFixed(2),
         y: (H - 8).toFixed(2),

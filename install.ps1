@@ -751,7 +751,7 @@ function Install-Llmwatch {
     if (-not [string]::IsNullOrWhiteSpace($versionOutput)) {
         Write-Host "  Versao:      $versionOutput"
     }
-    Write-Host "  URL:         http://$addr"
+    Write-Host "  URL:         http://$($addr -replace '^127\.0\.0\.1', 'localhost')"
     Write-Host "  Binario:     $exePath"
 
     if ($initOutput -match 'Senha inicial:\s*(\S+)') {

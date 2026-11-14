@@ -491,6 +491,12 @@ func probeHost(addr string) string {
 	return net.JoinHostPort(host, port)
 }
 
+// displayURL returns the panel URL shown to the user: the loopback address
+// reads as localhost, while the server keeps listening on 127.0.0.1.
+func displayURL(addr string) string {
+	return "http://" + strings.Replace(probeHost(addr), "127.0.0.1", "localhost", 1)
+}
+
 // probePanel reports whether the panel answers on the given URL.
 func probePanel(url string) bool {
 	client := &http.Client{Timeout: serviceProbeTimeout}
@@ -512,7 +518,7 @@ func waitPanelUp(e serviceEnv, out io.Writer) error {
 		return fmt.Errorf("o serviço foi iniciado mas o painel não respondeu em 15s; "+
 			"veja os logs (%s)", logHint(e.GOOS))
 	}
-	fmt.Fprintf(out, "llmwatch rodando em http://%s\n", e.Addr)
+	fmt.Fprintf(out, "llmwatch rodando em %s\n", displayURL(e.Addr))
 	return nil
 }
 
@@ -565,7 +571,7 @@ func logHint(goos string) string {
 func printPanelStatus(e serviceEnv, out io.Writer) {
 	url := probeURL(e.Addr)
 	if e.Probe(url) {
-		fmt.Fprintf(out, "painel: respondendo em http://%s\n", e.Addr)
+		fmt.Fprintf(out, "painel: respondendo em %s\n", displayURL(e.Addr))
 		return
 	}
 	fmt.Fprintf(out, "painel: não responde\n")

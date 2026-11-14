@@ -78,7 +78,7 @@ demais variáveis (`LLMWATCH_VERSION`, `LLMWATCH_REPO`, `LLMWATCH_ADDR`,
 
 ## Primeiro acesso
 
-1. Abra **http://127.0.0.1:18123**.
+1. Abra **http://localhost:18123**.
 2. Entre com a **senha inicial**. Ela é gerada na primeira execução, mostrada
    pelo instalador e gravada em `initial-password.txt` no diretório de dados
    (permissão `0600`).
@@ -393,7 +393,7 @@ go test -race ./...
 go run .
 ```
 
-O servidor em desenvolvimento sobe em `http://127.0.0.1:18123` (ajuste com
+O servidor em desenvolvimento sobe em `http://localhost:18123` (ajuste com
 `LLMWATCH_ADDR`).
 
 ### Release

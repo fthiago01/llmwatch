@@ -164,7 +164,7 @@ func TestServiceStartLinux(t *testing.T) {
 	wantCommands(t, f, []string{
 		"systemctl --user start llmwatch.service",
 	})
-	if !strings.Contains(out.String(), "llmwatch rodando em http://127.0.0.1:18123") {
+	if !strings.Contains(out.String(), "llmwatch rodando em http://localhost:18123") {
 		t.Fatalf("saída = %q", out.String())
 	}
 }
@@ -535,7 +535,7 @@ func TestServiceStatusActive(t *testing.T) {
 	if !strings.Contains(text, "serviço: instalado (active)") {
 		t.Fatalf("saída = %q", text)
 	}
-	if !strings.Contains(text, "painel: respondendo em http://127.0.0.1:18123") {
+	if !strings.Contains(text, "painel: respondendo em http://localhost:18123") {
 		t.Fatalf("saída = %q", text)
 	}
 }
@@ -753,5 +753,18 @@ func TestFakeRunQuotes(t *testing.T) {
 	want := []string{`taskkill /F /IM llmwatch.exe /FI "PID ne 4242"`}
 	if fmt.Sprint(got) != fmt.Sprint(want) {
 		t.Fatalf("linhas = %v, quer %v", got, want)
+	}
+}
+
+func TestDisplayURL(t *testing.T) {
+	cases := map[string]string{
+		"127.0.0.1:18123": "http://localhost:18123",
+		"0.0.0.0:18123":   "http://localhost:18123",
+		"192.168.0.5:80":  "http://192.168.0.5:80",
+	}
+	for addr, want := range cases {
+		if got := displayURL(addr); got != want {
+			t.Fatalf("displayURL(%q) = %q, quer %q", addr, got, want)
+		}
 	}
 }

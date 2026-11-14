@@ -579,7 +579,7 @@ main() {
 
 	printf '\n%s%s%s\n' "$C_BOLD" "llmwatch instalado." "$C_RESET"
 	info "versão: ${version_output:-desconhecida}"
-	info "url: http://$ADDR"
+	info "url: http://${ADDR/127.0.0.1/localhost}"
 
 	if [ -n "$init_output" ]; then
 		printf '\n%s%s%s\n' "$C_BOLD" "saída do init:" "$C_RESET"
