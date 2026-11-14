@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#1e3a8a">
+<meta name="theme-color" content="#f5f5f3">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/icons/icon-192.png">
@@ -20,72 +20,97 @@
 <style>
   :root {
     color-scheme: light dark;
-    --bg: #f6f7f9;
+    --bg: #f5f5f3;
     --panel: #ffffff;
-    --panel-alt: #f0f2f5;
-    --border: #dfe3e8;
-    --text: #1c2128;
-    --muted: #636c76;
-    --accent: #2f6feb;
-    --accent-soft: #dbe7ff;
-    --ok: #1a7f4b;
-    --warn: #b26a00;
-    --bad: #c0392b;
-    --grid: #eceff3;
-    --shadow: 0 1px 2px rgba(16, 22, 26, 0.06), 0 4px 12px rgba(16, 22, 26, 0.05);
-    --scroll: #dfe3e8;
+    --panel-alt: #f2f1ed;
+    --border: #ebeae6;
+    --text: #1d1c1a;
+    --muted: #77756f;
+    --accent: #1d1c1a;
+    --accent-soft: #ebeae6;
+    --ok: #2f7d3b;
+    --warn: #946200;
+    --bad: #b4401b;
+    --grid: #ebeae6;
+    --faint: #a9a7a0;
+    --line2: #dedcd6;
+    --okbg: #e8f5e9;
+    --warnbg: #fbf2d7;
+    --badbg: #fcebe4;
+    --shadow: 0 1px 2px rgba(25, 25, 15, 0.05);
+    --scroll: #dedcd6;
+    /* Chart colors: the glow intensity and the tooltip palette. */
+    --glow: 0.45;
+    --tip: #1d1c1a;
+    --tipText: #fff;
   }
   :root[data-theme="light"] { color-scheme: light; }
   :root[data-theme="dark"] { color-scheme: dark; }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-      --bg: #0e1116;
-      --panel: #161b22;
-      --panel-alt: #1c232c;
-      --border: #2b333d;
-      --text: #e6edf3;
-      --muted: #9198a1;
-      --accent: #58a6ff;
-      --accent-soft: #1d2b45;
-      --ok: #3fb950;
-      --warn: #d29922;
-      --bad: #f85149;
-      --grid: #262d36;
-      --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.3);
-      --scroll: #303944;
+      --bg: #060606;
+      --panel: #0c0c0c;
+      --panel-alt: #141413;
+      --border: #1c1c1b;
+      --text: #f3f2ee;
+      --muted: #8d8b84;
+      --accent: #f3f2ee;
+      --accent-soft: #1f1f1d;
+      --ok: #5fe08a;
+      --warn: #f1c96b;
+      --bad: #ff6b5b;
+      --grid: #1c1c1b;
+      --faint: #5e5c55;
+      --line2: #262624;
+      --okbg: #122016;
+      --warnbg: #2a2412;
+      --badbg: #2a1210;
+      --shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035), 0 20px 50px rgba(0, 0, 0, 0.35);
+      --scroll: #262624;
+      --glow: 1;
+      --tip: #050505;
+      --tipText: #f3f2ee;
     }
   }
   :root[data-theme="dark"] {
-    --bg: #0e1116;
-    --panel: #161b22;
-    --panel-alt: #1c232c;
-    --border: #2b333d;
-    --text: #e6edf3;
-    --muted: #9198a1;
-    --accent: #58a6ff;
-    --accent-soft: #1d2b45;
-    --ok: #3fb950;
-    --warn: #d29922;
-    --bad: #f85149;
-    --grid: #262d36;
-    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.3);
-    --scroll: #303944;
+    --bg: #060606;
+    --panel: #0c0c0c;
+    --panel-alt: #141413;
+    --border: #1c1c1b;
+    --text: #f3f2ee;
+    --muted: #8d8b84;
+    --accent: #f3f2ee;
+    --accent-soft: #1f1f1d;
+    --ok: #5fe08a;
+    --warn: #f1c96b;
+    --bad: #ff6b5b;
+    --grid: #1c1c1b;
+    --faint: #5e5c55;
+    --line2: #262624;
+    --okbg: #122016;
+    --warnbg: #2a2412;
+    --badbg: #2a1210;
+    --shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035), 0 20px 50px rgba(0, 0, 0, 0.35);
+    --scroll: #262624;
+    --glow: 1;
+    --tip: #050505;
+    --tipText: #f3f2ee;
   }
 
   * {
     box-sizing: border-box;
     scrollbar-width: thin;
-    scrollbar-color: var(--scroll, var(--border)) transparent;
+    scrollbar-color: var(--scroll, var(--line2)) transparent;
   }
   ::-webkit-scrollbar { width: 8px; height: 8px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb {
-    background: var(--scroll, var(--border));
-    border-radius: 8px;
+    background: var(--scroll, var(--line2));
+    border-radius: 999px;
     border: 2px solid transparent;
     background-clip: padding-box;
   }
-  ::-webkit-scrollbar-thumb:hover { background-color: var(--muted); }
+  ::-webkit-scrollbar-thumb:hover { background-color: var(--faint); }
 
   html, body {
     margin: 0;
@@ -95,10 +120,21 @@
   body {
     background: var(--bg);
     color: var(--text);
-    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, Cantarell, sans-serif;
+    font: 14px/1.5 Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
     -webkit-text-size-adjust: 100%;
     /* Never let a wide child push the page sideways. */
     overflow-x: hidden;
+  }
+
+  /* Numbers, values, percentages and code use the monospace face, so the
+     columns of the tables never jump while the snapshot is refreshed. */
+  code, pre, kbd, samp,
+  .kv dd, .big, .countdown, .qleft, .qmeta,
+  .totals .val, td, .num {
+    font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.03em;
   }
 
   /* Every flexible box is allowed to shrink below its content width, so the
@@ -142,10 +178,10 @@
   }
 
   h1 {
-    font-size: 20px;
+    font-size: 26px;
     font-weight: 650;
     margin: 0;
-    letter-spacing: -0.01em;
+    letter-spacing: -0.02em;
     white-space: nowrap;
     flex: none;
   }
@@ -165,15 +201,15 @@
   }
 
   .dot {
-    width: 9px;
-    height: 9px;
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
     background: var(--muted);
     flex: none;
   }
-  .dot.on { background: var(--ok); }
-  .dot.off { background: var(--bad); }
-  .dot.wait { background: var(--warn); }
+  .dot.on { background: var(--ok); box-shadow: 0 0 10px var(--ok); }
+  .dot.off { background: var(--bad); box-shadow: 0 0 10px var(--bad); }
+  .dot.wait { background: var(--warn); box-shadow: 0 0 10px var(--warn); }
 
   .spacer { flex: 1 1 auto; }
 
@@ -190,38 +226,46 @@
     color: var(--muted);
     text-decoration: none;
     font: inherit;
-    background: transparent;
-    border: 0;
-    padding: 3px 2px;
+    font-size: 13px;
+    font-weight: 600;
+    background: var(--panel-alt);
+    border: 1px solid var(--line2);
+    border-radius: 11px;
+    padding: 8px 14px;
     cursor: pointer;
     white-space: nowrap;
     flex: none;
+    transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
   }
   .header-nav a:hover,
-  .header-nav button:hover { color: var(--text); }
+  .header-nav button:hover { color: var(--text); border-color: var(--faint); }
   .header-nav a:focus-visible,
-  .header-nav button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .header-nav button:focus-visible { outline: 2px solid var(--faint); outline-offset: 1px; }
   .header-nav button[hidden] { display: none; }
 
   .theme-toggle {
-    width: 36px;
-    height: 36px;
-    min-width: 36px;
-    min-height: 36px;
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+    min-height: 34px;
     padding: 0;
-    border: 1px solid transparent;
-    border-radius: 8px;
+    border: 1px solid var(--line2);
+    border-radius: 9px;
     background: transparent;
+    color: var(--text);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
   .theme-toggle:hover:not(:disabled) {
     color: var(--text);
     background: var(--panel-alt);
-    border-color: var(--border);
+    border-color: var(--faint);
   }
-  .theme-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .theme-toggle:focus-visible { outline: 2px solid var(--faint); outline-offset: 1px; }
   .theme-toggle svg {
-    width: 16px;
-    height: 16px;
+    width: 20px;
+    height: 20px;
     display: block;
     fill: none;
     stroke: currentColor;
@@ -275,7 +319,7 @@
   }
   /* The discreet link that reopens the update toast. */
   .credit .updateLink {
-    color: var(--accent);
+    color: var(--text);
     text-decoration: none;
   }
   .credit .updateLink:hover { text-decoration: underline; }
@@ -293,8 +337,8 @@
     background: var(--panel);
     border: 1px solid var(--border);
     border-left: 3px solid var(--accent);
-    border-radius: 10px;
-    box-shadow: 0 8px 28px rgba(16, 22, 26, 0.22);
+    border-radius: 22px;
+    box-shadow: var(--shadow);
     padding: 14px 16px;
     animation: updateToastIn 260ms ease-out;
   }
@@ -323,13 +367,15 @@
   }
   .updateToast code {
     display: block;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.03em;
     font-size: 11.5px;
     line-height: 1.45;
     color: var(--text);
     background: var(--panel-alt);
     border: 1px solid var(--border);
-    border-radius: 7px;
+    border-radius: 11px;
     padding: 8px 9px;
     margin: 0 0 8px;
     word-break: break-all;
@@ -338,7 +384,7 @@
   .updateToast .updateNote {
     margin: 0 0 10px;
     font-size: 11px;
-    color: var(--muted);
+    color: var(--faint);
   }
   .updateToast .updateActions {
     display: flex;
@@ -349,19 +395,31 @@
   .updateToast button,
   .updateToast .updateLink {
     font: inherit;
-    font-size: 12px;
-    color: var(--accent);
-    background: transparent;
-    border: 1px solid var(--border);
-    border-radius: 7px;
-    padding: 5px 10px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    background: var(--panel-alt);
+    border: 1px solid var(--line2);
+    border-radius: 11px;
+    padding: 8px 14px;
     cursor: pointer;
     text-decoration: none;
+    transition: border-color 0.15s ease, background 0.15s ease;
   }
   .updateToast button:hover,
-  .updateToast .updateLink:hover { background: var(--accent-soft); }
+  .updateToast .updateLink:hover { border-color: var(--faint); }
   .updateToast button:focus-visible,
-  .updateToast .updateLink:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .updateToast .updateLink:focus-visible { outline: 2px solid var(--faint); outline-offset: 1px; }
+  /* The copy command is the primary action of the toast. */
+  .updateToast .updateActions > button:first-child {
+    color: var(--bg);
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .updateToast .updateActions > button:first-child:hover {
+    border-color: var(--accent);
+    filter: brightness(0.96);
+  }
   .updateToast .updateActions .dismiss {
     margin-left: auto;
     color: var(--muted);
@@ -376,11 +434,11 @@
   }
 
   h2 {
-    font-size: 13px;
-    font-weight: 650;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
-    letter-spacing: 0.07em;
-    color: var(--muted);
+    color: var(--faint);
     margin: 0 0 10px;
   }
 
@@ -393,7 +451,7 @@
   .card {
     background: var(--panel);
     border: 1px solid var(--border);
-    border-radius: 10px;
+    border-radius: 22px;
     padding: 13px 14px;
     box-shadow: var(--shadow);
   }
@@ -413,8 +471,8 @@
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    color: var(--accent);
-    background: var(--accent-soft);
+    color: var(--muted);
+    background: var(--panel-alt);
     border-radius: 999px;
     padding: 2px 8px;
   }
@@ -426,13 +484,12 @@
     font-size: 13px;
   }
   .kv dt { color: var(--muted); }
-  .kv dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+  .kv dd { margin: 0; text-align: right; }
 
   .big {
     font-size: 25px;
     font-weight: 650;
     letter-spacing: -0.02em;
-    font-variant-numeric: tabular-nums;
     margin: 2px 0 8px;
   }
 
@@ -440,7 +497,7 @@
     position: relative;
     height: 7px;
     border-radius: 999px;
-    background: var(--grid);
+    background: var(--panel-alt);
     overflow: hidden;
     margin-top: 5px;
   }
@@ -458,19 +515,45 @@
   .barlabel {
     display: flex;
     justify-content: space-between;
-    font-size: 11.5px;
-    color: var(--muted);
+    gap: 12px;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--faint);
     margin-top: 8px;
+  }
+  /* The label is the first span, the value is the last one. */
+  .barlabel > span:first-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .barlabel > span:last-child {
+    font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.03em;
+    text-transform: none;
+    color: var(--muted);
+    flex: none;
   }
   .barlabel + .bar { margin-top: 3px; }
 
   .countdown {
-    font-variant-numeric: tabular-nums;
     font-weight: 650;
   }
 
   .muted { color: var(--muted); }
   .empty { color: var(--muted); font-size: 13px; }
+  /* The inline links keep the palette of the page instead of the default
+     blue of the browser. */
+  .empty a {
+    color: var(--text);
+    text-decoration: none;
+    border-bottom: 1px solid var(--line2);
+  }
+  .empty a:hover {
+    border-bottom-color: var(--faint);
+  }
 
   .tabs {
     display: inline-flex;
@@ -478,27 +561,27 @@
     gap: 4px;
     background: var(--panel-alt);
     border: 1px solid var(--border);
-    border-radius: 9px;
+    border-radius: 12px;
     padding: 3px;
   }
   .tabs button {
     font: inherit;
-    font-size: 12.5px;
+    font-size: 13px;
     font-weight: 600;
     color: var(--muted);
     background: transparent;
     border: 0;
-    border-radius: 7px;
-    padding: 5px 12px;
+    border-radius: 9px;
+    padding: 6px 12px;
     cursor: pointer;
   }
   .tabs button:hover { color: var(--text); }
   .tabs button[aria-pressed="true"] {
     background: var(--panel);
-    color: var(--accent);
-    box-shadow: var(--shadow);
+    color: var(--text);
+    box-shadow: 0 0 0 1px var(--line2);
   }
-  .tabs button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .tabs button:focus-visible { outline: 2px solid var(--faint); outline-offset: 1px; }
 
   .totals {
     display: grid;
@@ -506,7 +589,7 @@
     gap: 1px;
     background: var(--border);
     border: 1px solid var(--border);
-    border-radius: 10px;
+    border-radius: 22px;
     overflow: hidden;
     margin-bottom: 12px;
   }
@@ -516,21 +599,21 @@
   }
   .totals .lbl {
     font-size: 11px;
+    font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--muted);
+    letter-spacing: 0.08em;
+    color: var(--faint);
   }
   .totals .val {
     font-size: 18px;
     font-weight: 650;
-    font-variant-numeric: tabular-nums;
-    letter-spacing: -0.01em;
+    letter-spacing: -0.03em;
   }
 
   .tablewrap {
     background: var(--panel);
     border: 1px solid var(--border);
-    border-radius: 10px;
+    border-radius: 22px;
     overflow-x: auto;
     box-shadow: var(--shadow);
   }
@@ -548,10 +631,10 @@
   }
   th {
     font-size: 11px;
-    font-weight: 650;
+    font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--muted);
+    letter-spacing: 0.08em;
+    color: var(--faint);
     background: var(--panel-alt);
     position: sticky;
     top: 0;
@@ -560,7 +643,6 @@
   th:nth-child(2), td:nth-child(2) { text-align: left; }
   tbody tr:last-child td { border-bottom: 0; }
   tbody tr:hover td { background: var(--panel-alt); }
-  td { font-variant-numeric: tabular-nums; }
   .prov {
     display: inline-block;
     width: 9px;
@@ -573,39 +655,125 @@
   .chart {
     background: var(--panel);
     border: 1px solid var(--border);
-    border-radius: 10px;
+    border-radius: 22px;
     padding: 14px 12px 10px;
     box-shadow: var(--shadow);
     overflow-x: auto;
   }
   #chart { height: 220px; }
   .chart svg { display: block; width: 100%; height: 100%; min-width: 0; }
+  .chart svg text {
+    font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.03em;
+    fill: var(--muted);
+  }
+
+  /* The drawing area is the anchor of the hover tooltip. */
+  #chart { position: relative; }
+
+  /* Axis labels, base line and the glow of the stacked areas, in the same
+     style of the ponytail board charts. */
+  .chart svg .axis {
+    fill: var(--faint);
+    font: 11px "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    letter-spacing: 0;
+  }
+  .chart svg .base { stroke: var(--line2); }
+  .chart svg .glow { opacity: calc(var(--glow) * .14); }
+  .chart svg .glow-line { opacity: calc(var(--glow) * .8); }
+  .chart svg .top-line { stroke: var(--text); stroke-opacity: .35; fill: none; }
+  .chart svg .hover-line { stroke: var(--faint); stroke-width: 1; stroke-dasharray: 3 3; }
+
+  /* The hover tooltip of the chart. */
+  .chart .tip {
+    position: absolute;
+    pointer-events: none;
+    background: var(--tip);
+    color: var(--tipText);
+    border: 1px solid var(--line2);
+    border-radius: 12px;
+    padding: 6px 9px;
+    font-size: 11px;
+    line-height: 1.35;
+    transform: translate(-50%, calc(-100% - 10px));
+    white-space: nowrap;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, .35);
+    z-index: 3;
+  }
+  .chart .tip[hidden] { display: none; }
+  /* Flipped to the other side of the point when it has no room above. */
+  .chart .tip.below { transform: translate(-50%, 10px); }
+  .chart .tip .tip-date { opacity: .65; }
+  .chart .tip .tip-value {
+    font: 600 11px "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    letter-spacing: 0;
+  }
+  .chart .tip .tip-row {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .chart .tip .tip-total {
+    border-top: 1px solid var(--line2);
+    margin-top: 3px;
+    padding-top: 3px;
+  }
+  .chart .tip .tip-swatch {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex: none;
+  }
+
+  /* The legend is a row of chips, in the style of the board. */
   .legend {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px 16px;
+    gap: 6px;
     margin-top: 10px;
     font-size: 12.5px;
     color: var(--muted);
   }
-  .legend span.item { display: inline-flex; align-items: center; gap: 6px; }
+  .legend .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: 10px;
+    background: var(--panel-alt);
+    border: 1px solid var(--line2);
+    color: var(--text);
+    font: inherit;
+    font-size: 12.5px;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+  .legend .chip .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--c);
+    box-shadow: 0 0 10px var(--c);
+    flex: none;
+  }
 
   .errors {
-    background: var(--panel);
-    border: 1px solid var(--border);
+    background: var(--badbg);
+    border: 1px solid transparent;
     border-left: 3px solid var(--bad);
-    border-radius: 10px;
+    border-radius: 11px;
     padding: 11px 14px;
   }
   .errors ul { margin: 0; padding-left: 18px; }
-  .errors li { font-size: 13px; color: var(--text); }
+  .errors li { font-size: 13px; color: var(--bad); }
 
   /* ------------------------------------------------------- quota limits */
 
   .quota {
     background: var(--panel);
     border: 1px solid var(--border);
-    border-radius: 10px;
+    border-radius: 22px;
     padding: 13px 14px;
     box-shadow: var(--shadow);
     display: flex;
@@ -667,10 +835,26 @@
     padding: 2px 8px;
   }
 
+  .badge.ok {
+    color: var(--ok);
+    background: var(--okbg);
+    border-color: transparent;
+  }
+  .badge.warn {
+    color: var(--warn);
+    background: var(--warnbg);
+    border-color: transparent;
+  }
+  .badge.bad {
+    color: var(--bad);
+    background: var(--badbg);
+    border-color: transparent;
+  }
+
   .plan {
     font-size: 11px;
     font-weight: 600;
-    color: var(--accent);
+    color: var(--text);
     background: var(--accent-soft);
     border-radius: 999px;
     padding: 2px 8px;
@@ -693,6 +877,7 @@
     gap: 3px;
     min-width: 0;
   }
+
   .qwin + .qwin {
     border-top: 0;
     padding-top: 0;
@@ -722,8 +907,7 @@
   .qleft {
     font-size: 21px;
     font-weight: 650;
-    letter-spacing: -0.02em;
-    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.03em;
     white-space: nowrap;
     color: var(--text);
   }
@@ -731,24 +915,23 @@
   .qmeta {
     font-size: 11.5px;
     color: var(--muted);
-    font-variant-numeric: tabular-nums;
     overflow-wrap: anywhere;
   }
 
   .qwarn {
     font-size: 12.5px;
     color: var(--warn);
-    background: var(--panel-alt);
-    border: 1px solid var(--border);
+    background: var(--warnbg);
+    border: 1px solid transparent;
     border-left: 3px solid var(--warn);
-    border-radius: 8px;
+    border-radius: 11px;
     padding: 8px 10px;
     overflow-wrap: anywhere;
   }
 
   .qstale {
     font-size: 11.5px;
-    color: var(--warn);
+    color: var(--faint);
     overflow-wrap: anywhere;
   }
 
@@ -797,7 +980,7 @@
     #windowSection {
       background: var(--panel);
       border: 1px solid var(--border);
-      border-radius: 10px;
+      border-radius: 22px;
       box-shadow: var(--shadow);
       padding: 12px;
       margin: 0;
@@ -850,7 +1033,7 @@
   /* Below 700px the dashboard is a single column: the header collapses to
      two lines and every section stacks in the reading order. */
   @media (max-width: 699px) {
-    h1 { font-size: 18px; }
+    h1 { font-size: 22px; }
     .big { font-size: 22px; }
 
     /* Line 1: the brand, the status dot and the age of the snapshot.
@@ -875,7 +1058,7 @@
 
     .header-nav {
       flex: 1 1 100%;
-      gap: 14px;
+      gap: 10px;
       overflow-x: auto;
       overflow-y: hidden;
       scrollbar-width: thin;
@@ -1038,7 +1221,7 @@
       gap: 10px 16px;
       background: var(--panel);
       border: 1px solid var(--border);
-      border-radius: 10px;
+      border-radius: 22px;
       box-shadow: var(--shadow);
       padding: 8px 14px;
       min-height: 0;
@@ -1046,7 +1229,7 @@
     }
 
     h1 {
-      font-size: 17px;
+      font-size: 22px;
       white-space: nowrap;
     }
 
@@ -1098,7 +1281,7 @@
     #windowSection {
       background: var(--panel);
       border: 1px solid var(--border);
-      border-radius: 10px;
+      border-radius: 22px;
       box-shadow: var(--shadow);
       padding: 12px;
       margin: 0;
@@ -1113,9 +1296,9 @@
     }
 
     h2 {
-      font-size: 11.5px;
+      font-size: 11px;
       margin: 0 0 8px;
-      letter-spacing: 0.06em;
+      letter-spacing: 0.08em;
     }
 
     /* Quotas span the full width; each card shows its windows side by side.
@@ -1296,6 +1479,8 @@
     #blocks .card {
       padding: 8px 10px;
       background: var(--panel-alt);
+      border-color: transparent;
+      border-radius: 14px;
       box-shadow: none;
       display: grid;
       grid-template-columns: 1fr auto;
@@ -1378,7 +1563,9 @@
       border-radius: 0;
       box-shadow: none;
       background: transparent;
-      overflow: hidden;
+      /* The tooltip of the hover may be taller than the drawing area, so
+         it is never clipped here. */
+      overflow: visible;
     }
 
     #chart {
@@ -1397,12 +1584,13 @@
       flex: none;
       flex-wrap: nowrap;
       overflow-x: auto;
-      gap: 6px 14px;
+      gap: 6px;
       margin-top: 6px;
       font-size: 11.5px;
     }
 
-    .legend span.item {
+    .legend .chip {
+      font-size: 11.5px;
       white-space: nowrap;
     }
 
@@ -1431,7 +1619,7 @@
       grid-auto-flow: column;
       grid-auto-columns: minmax(0, 1fr);
       margin: 8px 0;
-      border-radius: 8px;
+      border-radius: 14px;
     }
 
     .totals > div {
@@ -1450,7 +1638,7 @@
       flex: 1 1 auto;
       min-height: 0;
       overflow: auto;
-      border-radius: 8px;
+      border-radius: 14px;
       box-shadow: none;
     }
 
@@ -1613,6 +1801,77 @@
     while (node.firstChild) node.removeChild(node.firstChild);
   }
 
+  // ------------------------------------------------------------ svg helpers
+
+  // smooth draws a monotone cubic curve through the given points.
+  //
+  // The curve is flat at the peaks and at the valleys and never goes past a
+  // point, the same way the ponytail board draws its series.
+  function smooth(points) {
+    var n = points.length;
+    var m = [];
+    var d = "M" + points[0][0].toFixed(1) + "," + points[0][1].toFixed(1);
+    function slope(i) {
+      return (points[i + 1][1] - points[i][1]) / (points[i + 1][0] - points[i][0]);
+    }
+    if (n < 3) {
+      return n < 2 ? d : d + "L" + points[1][0].toFixed(1) + "," + points[1][1].toFixed(1);
+    }
+    var i;
+    for (i = 1; i < n - 1; i++) {
+      var s0 = slope(i - 1);
+      var s1 = slope(i);
+      m[i] = (Math.sign(s0) + Math.sign(s1)) *
+        Math.min(Math.abs(s0), Math.abs(s1), Math.abs(s0 + s1) / 4) || 0;
+    }
+    m[0] = (3 * slope(0) - m[1]) / 2;
+    m[n - 1] = (3 * slope(n - 2) - m[n - 2]) / 2;
+    for (i = 0; i < n - 1; i++) {
+      var dx = (points[i + 1][0] - points[i][0]) / 3;
+      d += "C" + (points[i][0] + dx).toFixed(1) + "," + (points[i][1] + m[i] * dx).toFixed(1) +
+        " " + (points[i + 1][0] - dx).toFixed(1) + "," + (points[i + 1][1] - m[i + 1] * dx).toFixed(1) +
+        " " + points[i + 1][0].toFixed(1) + "," + points[i + 1][1].toFixed(1);
+    }
+    return d;
+  }
+
+  // gradient creates a linear gradient inside the given defs element.
+  //
+  // The stops are pairs of offset and color, with an optional opacity.
+  function gradient(doc, defs, id, x2, y2, stops) {
+    var g = doc.createElementNS(SVG_NS, "linearGradient");
+    g.setAttribute("id", id);
+    g.setAttribute("gradientUnits", "userSpaceOnUse");
+    g.setAttribute("x1", "0");
+    g.setAttribute("y1", "0");
+    g.setAttribute("x2", String(x2));
+    g.setAttribute("y2", String(y2));
+    stops.forEach(function (stop) {
+      var s = doc.createElementNS(SVG_NS, "stop");
+      s.setAttribute("offset", String(stop[0]));
+      s.setAttribute("stop-color", stop[1]);
+      if (stop[2] !== undefined) s.setAttribute("stop-opacity", String(stop[2]));
+      g.appendChild(s);
+    });
+    defs.appendChild(g);
+    return g;
+  }
+
+  // blur creates a gaussian blur filter inside the given defs element.
+  function blur(doc, defs, id, deviation) {
+    var filter = doc.createElementNS(SVG_NS, "filter");
+    filter.setAttribute("id", id);
+    filter.setAttribute("x", "-20%");
+    filter.setAttribute("y", "-50%");
+    filter.setAttribute("width", "140%");
+    filter.setAttribute("height", "200%");
+    var blurNode = doc.createElementNS(SVG_NS, "feGaussianBlur");
+    blurNode.setAttribute("stdDeviation", String(deviation));
+    filter.appendChild(blurNode);
+    defs.appendChild(filter);
+    return filter;
+  }
+
   // formatCompact renders a token count in a short human readable form.
   function formatCompact(n) {
     n = Number(n) || 0;
@@ -1676,7 +1935,7 @@
   var THEME_KEY = "llmwatch.theme";
   var THEME_LABELS = { auto: "Tema: automático", light: "Tema: claro", dark: "Tema: escuro" };
   var THEME_ORDER = ["auto", "light", "dark"];
-  var THEME_COLORS = { light: "#1e3a8a", dark: "#0f172a" };
+  var THEME_COLORS = { light: "#f5f5f3", dark: "#060606" };
   var themeMode = "auto";
 
   function readStoredTheme() {
@@ -1767,13 +2026,11 @@
 
   // Provider colors are assigned by alphabetical order in the current
   // snapshot, so similar provider names always receive distinct colors.
-  var LIGHT_PALETTE = [
-    "#2a78d6", "#eb6834", "#1baf7a", "#eda100",
-    "#e87ba4", "#008300", "#6250d6", "#e34948"
-  ];
-  var DARK_PALETTE = [
-    "#3987e5", "#d95926", "#199e70", "#c98500",
-    "#d55181", "#008300", "#9085e9", "#e66767"
+  //
+  // Series colors from the ponytail board, used as-is in both themes.
+  var PROVIDER_PALETTE = [
+    "#4cc3ff", "#ff8a3d", "#2fd4c0", "#ffd166",
+    "#ff6fb5", "#7c8cff", "#b26bff", "#5fe08a"
   ];
 
   var providerColors = {};
@@ -1811,7 +2068,7 @@
 
   function rebuildProviderColors(snapshot) {
     providerColors = {};
-    var palette = effectiveTheme() === "dark" ? DARK_PALETTE : LIGHT_PALETTE;
+    var palette = PROVIDER_PALETTE;
     collectSnapshotProviders(snapshot).forEach(function (provider, index) {
       providerColors[provider] = index < palette.length ? palette[index] : "var(--muted)";
     });
@@ -1822,7 +2079,7 @@
     if (!providerColors[provider]) {
       rebuildProviderColors(state.snapshot);
     }
-    return providerColors[provider] || (effectiveTheme() === "dark" ? DARK_PALETTE[0] : LIGHT_PALETTE[0]);
+    return providerColors[provider] || PROVIDER_PALETTE[0];
   }
 
   // ------------------------------------------------------------- app state
@@ -1957,27 +2214,32 @@
   //
   // It is injected as text, so no markup is ever interpreted as HTML.
   var WIDGET_CSS = [
-    ":root{color-scheme:light dark;--bg:#f6f7f9;--panel:#ffffff;--panel-alt:#f0f2f5;--border:#dfe3e8;",
-    "--text:#1c2128;--muted:#636c76;--accent:#2f6feb;--accent-soft:#dbe7ff;",
-    "--ok:#1a7f4b;--warn:#b26a00;--bad:#c0392b;--grid:#eceff3}",
+    ":root{color-scheme:light dark;--bg:#f5f5f3;--panel:#ffffff;--panel-alt:#f2f1ed;",
+    "--border:#ebeae6;--text:#1d1c1a;--muted:#77756f;--accent:#1d1c1a;--accent-soft:#ebeae6;",
+    "--ok:#2f7d3b;--warn:#946200;--bad:#b4401b;--grid:#ebeae6;--faint:#a9a7a0;--line2:#dedcd6;",
+    "--okbg:#e8f5e9;--warnbg:#fbf2d7;--badbg:#fcebe4;--glow:.45}",
     ":root[data-theme=light]{color-scheme:light}",
     ":root[data-theme=dark]{color-scheme:dark}",
-    "@media (prefers-color-scheme: dark){:root:not([data-theme=light]){--bg:#0e1116;--panel:#161b22;",
-    "--panel-alt:#1c232c;--border:#2b333d;--text:#e6edf3;--muted:#9198a1;",
-    "--accent:#58a6ff;--accent-soft:#1d2b45;--ok:#3fb950;--warn:#d29922;",
-    "--bad:#f85149;--grid:#262d36}}",
-    ":root[data-theme=dark]{--bg:#0e1116;--panel:#161b22;--panel-alt:#1c232c;--border:#2b333d;",
-    "--text:#e6edf3;--muted:#9198a1;--accent:#58a6ff;--accent-soft:#1d2b45;--ok:#3fb950;",
-    "--warn:#d29922;--bad:#f85149;--grid:#262d36}",
+    "@media (prefers-color-scheme: dark){:root:not([data-theme=light]){--bg:#060606;--panel:#0c0c0c;",
+    "--panel-alt:#141413;--border:#1c1c1b;--text:#f3f2ee;--muted:#8d8b84;",
+    "--accent:#f3f2ee;--accent-soft:#1f1f1d;--ok:#5fe08a;--warn:#f1c96b;",
+    "--bad:#ff6b5b;--grid:#1c1c1b;--faint:#5e5c55;--line2:#262624;",
+    "--okbg:#122016;--warnbg:#2a2412;--badbg:#2a1210;--glow:1}}",
+    ":root[data-theme=dark]{--bg:#060606;--panel:#0c0c0c;--panel-alt:#141413;--border:#1c1c1b;",
+    "--text:#f3f2ee;--muted:#8d8b84;--accent:#f3f2ee;--accent-soft:#1f1f1d;--ok:#5fe08a;",
+    "--warn:#f1c96b;--bad:#ff6b5b;--grid:#1c1c1b;--faint:#5e5c55;--line2:#262624;",
+    "--okbg:#122016;--warnbg:#2a2412;--badbg:#2a1210;--glow:1}",
     "*{box-sizing:border-box}",
     "html,body{margin:0;padding:0;height:100%}",
     "body{background:var(--bg);color:var(--text);",
-    "font:12px/1.35 system-ui,-apple-system,'Segoe UI',Roboto,Ubuntu,Cantarell,sans-serif;",
-    "-webkit-text-size-adjust:100%;overflow:hidden}",
+    "font:12px/1.35 Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;",
+    "-webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%;overflow:hidden}",
     ".whead{display:flex;align-items:center;gap:6px;padding:6px 8px;",
     "border-bottom:1px solid var(--border);background:var(--panel)}",
     ".wdot{width:8px;height:8px;border-radius:50%;background:var(--muted);flex:none}",
-    ".wdot.on{background:var(--ok)}.wdot.off{background:var(--bad)}.wdot.wait{background:var(--warn)}",
+    ".wdot.on{background:var(--ok);box-shadow:0 0 10px var(--ok)}",
+    ".wdot.off{background:var(--bad);box-shadow:0 0 10px var(--bad)}",
+    ".wdot.wait{background:var(--warn);box-shadow:0 0 10px var(--warn)}",
     ".wname{font-weight:650;font-size:12px}",
     ".wage{color:var(--muted);font-size:10.5px;margin-left:auto;white-space:nowrap}",
     ".wbody{padding:6px 8px;overflow-y:auto;height:calc(100% - 31px)}",
@@ -1989,18 +2251,21 @@
     ".wwinhead{display:flex;align-items:baseline;justify-content:space-between;gap:6px}",
     ".wwinname{color:var(--muted);font-size:10px;white-space:nowrap;",
     "overflow:hidden;text-overflow:ellipsis}",
-    ".wleft{font-size:12px;font-weight:650;font-variant-numeric:tabular-nums;white-space:nowrap}",
-    ".wbar{height:4px;border-radius:999px;background:var(--grid);overflow:hidden;margin-top:2px}",
+    ".wleft{font-size:12px;font-weight:650;font-family:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace;",
+    "font-variant-numeric:tabular-nums;letter-spacing:-.03em;white-space:nowrap}",
+    ".wbar{height:4px;border-radius:999px;background:var(--panel-alt);overflow:hidden;margin-top:2px}",
     ".wbar>i{display:block;height:100%;border-radius:999px;background:var(--accent)}",
     ".wbar.ok>i{background:var(--ok)}.wbar.warn>i{background:var(--warn)}.wbar.bad>i{background:var(--bad)}",
     ".wfoot{display:flex;justify-content:space-between;gap:6px;margin-top:2px;",
-    "font-size:10px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}",
+    "font-size:10px;color:var(--muted);font-family:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace;",
+    "font-variant-numeric:tabular-nums;letter-spacing:-.03em;white-space:nowrap}",
     ".wreset{overflow:hidden;text-overflow:ellipsis}",
     ".wwarn{color:var(--warn);font-size:10.5px;overflow-wrap:anywhere}",
     ".wempty{color:var(--muted);font-size:11px}",
     ".wspark{position:relative;height:28px;margin-top:5px}",
     ".wspark svg{display:block;width:100%;height:28px;overflow:visible}",
     ".wspark .wspark-line{vector-effect:non-scaling-stroke}",
+    ".wspark .glow-line{opacity:calc(var(--glow) * .8)}",
     ".wspark-label{color:var(--muted);font-size:10px;text-align:right;margin-top:1px}",
     ".wspark-empty{color:var(--muted);font-size:10px;height:28px;display:flex;align-items:center}",
     "@media (max-width: 260px){.wreset{display:none}.wfoot{justify-content:flex-end}}"
@@ -2174,6 +2439,12 @@
     return win;
   }
 
+  // sparklineSeq numbers the sparklines of the floating window.
+  //
+  // The gradients and the filters of each one need an id of their own,
+  // otherwise every sparkline would use the colors of the first one.
+  var sparklineSeq = 0;
+
   // buildWidgetSparkline renders the 24-hour token series for a provider.
   function buildWidgetSparkline(doc, provider) {
     var wrap = doc.createElement("div");
@@ -2217,54 +2488,55 @@
     svg.setAttribute("aria-label", "Tokens por hora nas últimas 24h: total " + formatCompact(total) +
       ", pico " + formatCompact(max) + " às " + peakHour);
 
+    // The defs of the sparkline: a vertical gradient for the area, a
+    // horizontal one for the line and the blur of the glow.
+    var seq = sparklineSeq++;
+    var defs = doc.createElementNS(SVG_NS, "defs");
+    svg.appendChild(defs);
+    gradient(doc, defs, "llmw-spark-line-" + seq, width, 0, [
+      [0, color, 1],
+      [1, color, 1]
+    ]);
+    gradient(doc, defs, "llmw-spark-fill-" + seq, 0, height, [
+      [0, color, 0.38],
+      [1, color, 0]
+    ]);
+    blur(doc, defs, "llmw-spark-glow-" + seq, 5);
+
+    // The smooth line of the series, in the style of the board sparkline.
     var points = values.map(function (value, index) {
       var x = values.length > 1 ? (index / (values.length - 1)) * width : width;
-      var y = height - (value / max) * (height - 4) - 2;
-      return { x: x, y: y };
+      var y = height - 3 - (value / max) * (height - 8);
+      return [x, y];
     });
-    var linePath = points.map(function (point, index) {
-      return (index ? "L" : "M") + point.x.toFixed(2) + " " + point.y.toFixed(2);
-    }).join(" ");
-    var areaPath = linePath + " L" + width + " " + height + " L0 " + height + " Z";
+    var linePath = smooth(points);
+    var areaPath = linePath + "L" + width + "," + height + "L0," + height + "Z";
 
     var area = doc.createElementNS(SVG_NS, "path");
     area.setAttribute("d", areaPath);
-    area.setAttribute("fill", color);
-    area.setAttribute("fill-opacity", "0.15");
+    area.setAttribute("fill", "url(#llmw-spark-fill-" + seq + ")");
     svg.appendChild(area);
 
-    var baseline = doc.createElementNS(SVG_NS, "line");
-    baseline.setAttribute("x1", "0");
-    baseline.setAttribute("x2", String(width));
-    baseline.setAttribute("y1", String(height - 0.5));
-    baseline.setAttribute("y2", String(height - 0.5));
-    baseline.setAttribute("stroke", "var(--border)");
-    baseline.setAttribute("stroke-width", "1");
-    svg.appendChild(baseline);
+    // The blurred copy of the line, used as a soft glow.
+    var glow = doc.createElementNS(SVG_NS, "path");
+    glow.setAttribute("d", linePath);
+    glow.setAttribute("fill", "none");
+    glow.setAttribute("stroke", "url(#llmw-spark-line-" + seq + ")");
+    glow.setAttribute("stroke-width", "2");
+    glow.setAttribute("filter", "url(#llmw-spark-glow-" + seq + ")");
+    glow.setAttribute("class", "glow-line");
+    glow.setAttribute("vector-effect", "non-scaling-stroke");
+    svg.appendChild(glow);
 
     var line = doc.createElementNS(SVG_NS, "path");
     line.setAttribute("d", linePath);
     line.setAttribute("fill", "none");
-    line.setAttribute("stroke", color);
-    line.setAttribute("stroke-width", "2");
+    line.setAttribute("stroke", "url(#llmw-spark-line-" + seq + ")");
+    line.setAttribute("stroke-width", "1.8");
     line.setAttribute("stroke-linejoin", "round");
     line.setAttribute("stroke-linecap", "round");
     line.setAttribute("vector-effect", "non-scaling-stroke");
     svg.appendChild(line);
-
-    var end = points[points.length - 1];
-    var ring = doc.createElementNS(SVG_NS, "circle");
-    ring.setAttribute("cx", end.x.toFixed(2));
-    ring.setAttribute("cy", end.y.toFixed(2));
-    ring.setAttribute("r", "5.5");
-    ring.setAttribute("fill", "var(--panel)");
-    svg.appendChild(ring);
-    var dot = doc.createElementNS(SVG_NS, "circle");
-    dot.setAttribute("cx", end.x.toFixed(2));
-    dot.setAttribute("cy", end.y.toFixed(2));
-    dot.setAttribute("r", "3.5");
-    dot.setAttribute("fill", color);
-    svg.appendChild(dot);
 
     buckets.forEach(function (bucket, index) {
       var hover = doc.createElementNS(SVG_NS, "rect");
@@ -2875,6 +3147,11 @@
     return { w: w, h: h };
   }
 
+  // renderChart draws the stacked area chart of the last 24 hours.
+  //
+  // The visual is the one of the ponytail board: one smooth area per
+  // provider, stacked from the bottom up, a soft glow under the top of the
+  // stack, a vertical hover line and a tooltip with the values of the hour.
   function renderChart() {
     clear(refs.chart);
     clear(refs.legend);
@@ -2898,12 +3175,12 @@
     // The legend is drawn before the chart is measured: it takes space from
     // the container, so the drawing area is only known once it is in place.
     providers.forEach(function (p) {
-      var item = el("span", "item");
-      var sw = el("span", "prov");
-      sw.style.background = colorFor(p);
-      item.appendChild(sw);
-      item.appendChild(document.createTextNode(p));
-      refs.legend.appendChild(item);
+      var chip = el("span", "chip");
+      var dot = el("span", "dot");
+      dot.style.setProperty("--c", colorFor(p));
+      chip.appendChild(dot);
+      chip.appendChild(document.createTextNode(p));
+      refs.legend.appendChild(chip);
     });
 
     var size = chartSize();
@@ -2911,21 +3188,30 @@
     var H = size.h;
     var padL = 46;
     var padR = 12;
-    var padT = 12;
+    // A little room above the plot, so the tooltip of the peak has space
+    // to hang without leaving the drawing area.
+    var padT = 18;
     var padB = 26;
     var plotW = W - padL - padR;
     var plotH = H - padT - padB;
     if (plotW < 1) plotW = 1;
     if (plotH < 1) plotH = 1;
 
-    var max = 0;
-    buckets.forEach(function (bucket) {
-      var sum = 0;
-      var map = bucket.by_provider || {};
-      Object.keys(map).forEach(function (p) { sum += Number(map[p]) || 0; });
-      if (sum > max) max = sum;
+    // The tokens of every provider in every bucket, in the provider order.
+    var series = providers.map(function (provider) {
+      return buckets.map(function (bucket) {
+        var map = bucket.by_provider || {};
+        return Number(map[provider]) || 0;
+      });
     });
-    if (max <= 0) max = 1;
+
+    // The total of every bucket, the peak of the period.
+    var totals = buckets.map(function (bucket, i) {
+      var sum = 0;
+      for (var s = 0; s < series.length; s++) sum += series[s][i];
+      return sum;
+    });
+    var max = totals.reduce(function (peak, value) { return value > peak ? value : peak; }, 0);
 
     var svg = svgEl("svg", {
       width: "100%",
@@ -2935,74 +3221,192 @@
       role: "img",
       "aria-label": "Tokens por hora nas últimas 24 horas"
     });
+    refs.chart.appendChild(svg);
 
-    // Horizontal grid lines with axis labels.
+    var defs = svgEl("defs");
+    svg.appendChild(defs);
+    blur(document, defs, "llmw-chart-glow", 10);
+
+    var x = function (i) {
+      return buckets.length > 1 ? padL + (i / (buckets.length - 1)) * plotW : padL + plotW / 2;
+    };
+    var y = function (v) {
+      return padT + plotH - (max > 0 ? (v / max) * plotH : 0);
+    };
+
+    // The base line of the stack.
+    svg.appendChild(svgEl("line", {
+      x1: padL, y1: (padT + plotH).toFixed(2), x2: (W - padR).toFixed(2), y2: (padT + plotH).toFixed(2),
+      "class": "base", "stroke-width": 1
+    }));
+
+    // The labels of the Y axis, without any grid line.
     var ticks = 4;
-    for (var t = 0; t <= ticks; t++) {
+    for (var t = 1; t <= ticks; t++) {
       var value = (max / ticks) * t;
-      var y = padT + plotH - (value / max) * plotH;
-      svg.appendChild(svgEl("line", {
-        x1: padL, y1: y, x2: W - padR, y2: y,
-        stroke: "var(--grid)", "stroke-width": 1
-      }));
       var label = svgEl("text", {
-        x: padL - 7, y: y + 4,
+        x: padL - 7,
+        y: (y(value) + 4).toFixed(2),
         "text-anchor": "end",
-        "font-size": 10,
-        fill: "var(--muted)"
+        "class": "axis"
       });
       label.textContent = formatCompact(value);
       svg.appendChild(label);
     }
 
-    var slot = plotW / buckets.length;
-    var barW = Math.max(2, slot * 0.66);
-
+    // The labels of the X axis, one every three hours to avoid crowding.
     buckets.forEach(function (bucket, i) {
-      var x = padL + i * slot + (slot - barW) / 2;
-      var map = bucket.by_provider || {};
-      var cursor = padT + plotH;
-
-      Object.keys(map).sort().forEach(function (p) {
-        var tokens = Number(map[p]) || 0;
-        if (tokens <= 0) return;
-        var h = (tokens / max) * plotH;
-        cursor -= h;
-        var rect = svgEl("rect", {
-          x: x.toFixed(2),
-          y: cursor.toFixed(2),
-          width: barW.toFixed(2),
-          height: Math.max(h, 0.5).toFixed(2),
-          fill: colorFor(p),
-          rx: 1
-        });
-        var title = svgEl("title");
-        title.textContent = formatHour(bucket.hour) + " · " + p + ": " + formatInt(tokens) + " tokens";
-        rect.appendChild(title);
-        svg.appendChild(rect);
+      if (i % 3 !== 0) return;
+      var hourText = svgEl("text", {
+        x: x(i).toFixed(2),
+        y: (H - 8).toFixed(2),
+        "text-anchor": "middle",
+        "class": "axis"
       });
-
-      // Hour label below the axis (every third hour to avoid crowding).
-      if (i % 3 === 0) {
-        var hourText = svgEl("text", {
-          x: (x + barW / 2).toFixed(2),
-          y: H - 8,
-          "text-anchor": "middle",
-          "font-size": 10,
-          fill: "var(--muted)"
-        });
-        hourText.textContent = formatHour(bucket.hour);
-        svg.appendChild(hourText);
-      }
+      hourText.textContent = formatHour(bucket.hour);
+      svg.appendChild(hourText);
     });
 
-    // Baseline.
-    svg.appendChild(svgEl("line", {
-      x1: padL, y1: padT + plotH, x2: W - padR, y2: padT + plotH,
-      stroke: "var(--border)", "stroke-width": 1
-    }));
+    if (max <= 0) {
+      var empty = svgEl("text", {
+        x: (padL + plotW / 2).toFixed(2),
+        y: (padT + plotH / 2).toFixed(2),
+        "text-anchor": "middle",
+        "class": "axis"
+      });
+      empty.textContent = "sem consumo local nas últimas 24h";
+      svg.appendChild(empty);
+      return;
+    }
 
-    refs.chart.appendChild(svg);
+    // One smooth area per provider, stacked from the bottom up.
+    var accumulated = buckets.map(function () { return 0; });
+    var shapes = [];
+    series.forEach(function (values, li) {
+      var lower = accumulated;
+      var upper = accumulated.map(function (base, i) { return base + values[i]; });
+      accumulated = upper;
+
+      var color = colorFor(providers[li]);
+      gradient(document, defs, "llmw-chart-fill-" + li, 0, padT + plotH, [
+        [0, color, 0.95],
+        [1, color, 0.55]
+      ]);
+
+      var up = smooth(upper.map(function (value, i) { return [x(i), y(value)] }));
+      var down = smooth(lower.map(function (value, i) { return [x(i), y(value)] }).reverse());
+      shapes.push({ d: up + "L" + down.slice(1) + "Z", top: up, color: color });
+    });
+
+    // The soft glow under the top of the stack.
+    var last = shapes[shapes.length - 1];
+    if (last) {
+      svg.appendChild(svgEl("path", {
+        d: last.top + "L" + (W - padR).toFixed(2) + "," + (padT + plotH).toFixed(2) +
+          "L" + padL + "," + (padT + plotH).toFixed(2) + "Z",
+        fill: last.color,
+        filter: "url(#llmw-chart-glow)",
+        "class": "glow"
+      }));
+    }
+
+    // The stacked areas, in the provider order.
+    shapes.forEach(function (shape, si) {
+      svg.appendChild(svgEl("path", { d: shape.d, fill: "url(#llmw-chart-fill-" + si + ")" }));
+    });
+
+    // The line on the top of the stack.
+    if (last) {
+      svg.appendChild(svgEl("path", {
+        d: last.top,
+        "class": "top-line",
+        "stroke-width": 1.2
+      }));
+    }
+
+    // The hover line, drawn over the areas.
+    var hover = svgEl("line", {
+      y1: padT, y2: (padT + plotH).toFixed(2),
+      "class": "hover-line",
+      visibility: "hidden"
+    });
+    svg.appendChild(hover);
+
+    // The tooltip lives inside the chart container, over the drawing area.
+    var tip = el("div", "tip");
+    tip.hidden = true;
+    refs.chart.appendChild(tip);
+
+    svg.addEventListener("mousemove", function (ev) {
+      var rect = refs.chart.getBoundingClientRect();
+      if (!rect.width) return;
+      // The pointer is mapped to the plot area, so the tooltip always
+      // matches the point under the cursor.
+      var offset = ev.clientX - rect.left - padL / W * rect.width;
+      var span = plotW / W * rect.width;
+      var ratio = span > 0 ? offset / span : 0;
+      var i = Math.max(0, Math.min(buckets.length - 1, Math.round(ratio * (buckets.length - 1))));
+      var px = x(i);
+
+      hover.setAttribute("x1", px.toFixed(2));
+      hover.setAttribute("x2", px.toFixed(2));
+      hover.setAttribute("visibility", "visible");
+
+      clear(tip);
+      tip.appendChild(el("div", "tip-date", formatHour(buckets[i].hour)));
+
+      var total = 0;
+      providers.forEach(function (provider, pi) {
+        var tokens = series[pi][i];
+        total += tokens;
+        if (tokens <= 0) return;
+        var row = el("div", "tip-row");
+        var swatch = el("span", "tip-swatch");
+        swatch.style.background = shapes[pi].color;
+        row.appendChild(swatch);
+        row.appendChild(el("span", null, provider));
+        row.appendChild(el("span", "tip-value", formatInt(tokens)));
+        tip.appendChild(row);
+      });
+      var totalRow = el("div", "tip-row tip-total");
+      totalRow.appendChild(el("span", null, "total"));
+      totalRow.appendChild(el("span", "tip-value", formatInt(total)));
+      tip.appendChild(totalRow);
+
+      // The tooltip hangs above the point, like in the board. When there is
+      // no room above it, it is flipped to the other side of the point, and
+      // it is kept inside the drawing area on both axes.
+      tip.hidden = false;
+      var tipWidth = tip.offsetWidth;
+      var tipHeight = tip.offsetHeight;
+      var tipTop = y(totals[i]) / H * rect.height;
+      var tipLeft = px / W * rect.width;
+
+      // Above the point by default, below it when there is no room.
+      var above = tipTop - tipHeight - 10;
+      var below = tipTop + 10;
+      tip.classList.remove("below");
+      if (above < 0 && below + tipHeight > rect.height) {
+        // Neither side fits: the tooltip is pinned inside the area.
+        tip.classList.add("below");
+        tip.style.top = Math.max(0, Math.min(rect.height - tipHeight, tipTop)) + "px";
+      } else if (above < 0) {
+        tip.classList.add("below");
+        tip.style.top = below + "px";
+      } else {
+        tip.style.top = tipTop + "px";
+      }
+
+      // The tooltip is centered on the point, but it never leaves the
+      // drawing area.
+      var half = tipWidth / 2;
+      tip.style.left = Math.max(half, Math.min(rect.width - half, tipLeft)) + "px";
+    });
+
+    svg.addEventListener("mouseleave", function () {
+      hover.setAttribute("visibility", "hidden");
+      tip.hidden = true;
+    });
   }
 
   function formatHour(value) {
