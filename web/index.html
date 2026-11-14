@@ -682,6 +682,11 @@
   .spark {
     display: block;
     width: calc(100% + 40px);
+    /* The browser clamps an SVG to the width of its box with a max-width of
+       100%, so the negative margins below were pointless and the chart
+       stopped short of the right edge of the card. Removing the clamp lets
+       the sparkline go from edge to edge. */
+    max-width: none;
     height: 58px;
     margin: 10px -20px 0;
     position: relative;
@@ -726,6 +731,62 @@
     fill: var(--faint);
     font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 12px;
+  }
+
+  /* The decorative layers of the honeycomb never take the pointer, so the
+     hover is resolved by the geometry of the cells and not by the element
+     under the cursor. */
+  #heat .glow-cell,
+  #heat .day,
+  #heat .legend-cell,
+  #heat .heat-highlight {
+    pointer-events: none;
+  }
+
+  /* The hover tooltip of the honeycomb, in the same style of the tooltip of
+     the chart of the last 24h. */
+  #heatSection .heat {
+    position: relative;
+  }
+
+  #heatSection .tip {
+    position: absolute;
+    pointer-events: none;
+    background: var(--tip);
+    color: var(--tipText);
+    border: 1px solid var(--line2);
+    border-radius: 12px;
+    padding: 6px 9px;
+    font-size: 11px;
+    line-height: 1.35;
+    transform: translate(-50%, calc(-100% - 10px));
+    white-space: nowrap;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, .35);
+    z-index: 3;
+  }
+  #heatSection .tip[hidden] { display: none; }
+  /* Flipped to the other side of the cell when it has no room above. */
+  #heatSection .tip.below { transform: translate(-50%, 0); }
+  #heatSection .tip .tip-date { opacity: .65; }
+  #heatSection .tip .tip-value {
+    font: 600 11px "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    letter-spacing: 0;
+  }
+
+  /* The cell under the pointer is outlined, so the tooltip is clearly tied
+     to the day it describes. The outline is a separate path, drawn over the
+     honeycomb, because the cells are recreated on every update. */
+  #heat .cell {
+    stroke: transparent;
+    stroke-width: 1.5;
+  }
+
+  #heat .heat-highlight {
+    fill: none;
+    stroke: var(--text);
+    stroke-opacity: .55;
+    stroke-width: 1.5;
+    visibility: hidden;
   }
 
   /* -------------------------------------------------- projects and sessions */
@@ -3614,6 +3675,28 @@
   // DAY_LABELS are the weekdays shown on the left of the honeycomb.
   var DAY_LABELS = ["Seg", "Qua", "Sex"];
 
+  // HEAT_R is the radius of a hexagon of the honeycomb, in the units of the
+  // viewBox of the drawing.
+  var HEAT_R = 17;
+
+  // heatCells holds the cells of the honeycomb with their position in the
+  // viewBox of the drawing, and it is refreshed on every render.
+  //
+  // The hover is resolved with these coordinates instead of the elements
+  // under the cursor, because the decorative layers of the drawing are laid
+  // over the cells and would swallow the pointer.
+  var heatCells = [];
+
+  // heatPointer keeps the last known position of the pointer over the
+  // drawing, in client coordinates.
+  //
+  // The drawing is recreated on every update of the page, so the position is
+  // used to put the tooltip back on the cell it was showing.
+  var heatPointer = null;
+
+  // heatHighlight is the path that outlines the cell under the pointer.
+  var heatHighlight = null;
+
   // renderHeat draws the honeycomb of the last twelve weeks.
   //
   // There is a column per week and a row per weekday, and the color of a
@@ -3626,6 +3709,9 @@
     if (!daily.length) {
       section.hidden = true;
       clear(refs.heat);
+      heatCells = [];
+      heatHighlight = null;
+      if (heatTip) heatTip.hidden = true;
       if (refs.heatSub) refs.heatSub.textContent = "";
       return;
     }
@@ -3647,7 +3733,7 @@
     var svg = refs.heat;
     clear(svg);
 
-    var r = 17;
+    var r = HEAT_R;
     var w = Math.sqrt(3) * r;
     var left = 44;
     var top = r + 2;
@@ -3662,6 +3748,9 @@
     svg.appendChild(defs);
     blur(document, defs, "llmw-heat-glow", 6);
 
+    // The cells are kept with their position in the viewBox, so the hover
+    // can be resolved by the geometry and not by the element under the
+    // cursor.
     var cells = days.map(function (day, i) {
       var pos = i + firstDow;
       var row = pos % 7;
@@ -3674,6 +3763,8 @@
         cy: top + row * r * 1.5
       };
     });
+
+    heatCells = cells;
 
     // The glow of the busiest cells is painted under the honeycomb.
     cells.forEach(function (cell) {
@@ -3689,13 +3780,18 @@
 
     cells.forEach(function (cell) {
       var path = svgEl("path", cell.value
-        ? { d: hex(cell.cx, cell.cy, r - 2), fill: heatColor(cell.ratio) }
-        : { d: hex(cell.cx, cell.cy, r - 2), "class": "cell-empty" });
-      var title = svgEl("title");
-      title.textContent = shortDate(cell.date) + ": " + formatInt(cell.value) + " tokens";
-      path.appendChild(title);
+        ? { d: hex(cell.cx, cell.cy, r - 2), fill: heatColor(cell.ratio), "class": "cell" }
+        : { d: hex(cell.cx, cell.cy, r - 2), "class": "cell cell-empty" });
+      path.setAttribute("data-date", cell.date);
+      path.setAttribute("data-value", String(cell.value));
       svg.appendChild(path);
     });
+
+    // The outline of the cell under the pointer. It is a path of its own,
+    // drawn over the honeycomb, because the cells are recreated on every
+    // update of the page.
+    heatHighlight = svgEl("path", { "class": "heat-highlight" });
+    svg.appendChild(heatHighlight);
 
     // The labels of the weekdays, on the left of the honeycomb.
     DAY_LABELS.forEach(function (label, i) {
@@ -3725,7 +3821,8 @@
     [0.1, 0.3, 0.55, 0.8, 1].forEach(function (a, i) {
       svg.appendChild(svgEl("path", {
         d: hex(end - (4 - i) * 15, ly, 6.5),
-        fill: heatColor(a)
+        fill: heatColor(a),
+        "class": "legend-cell"
       }));
     });
 
@@ -3741,6 +3838,260 @@
     svg.setAttribute("viewBox", "0 0 " + Math.ceil(right + 2) + " " + Math.ceil(ly + 10));
     svg.setAttribute("aria-label",
       "Atividade diária de tokens nas últimas 12 semanas, " + formatInt(total) + " tokens no total");
+
+    // The listeners live on the drawing itself, which is never replaced, so
+    // they survive the updates of the page.
+    bindHeatTip();
+
+    // The drawing was rebuilt under the pointer, so the tooltip is put back
+    // on the same cell instead of blinking out on every update.
+    restoreHeatTip();
+  }
+
+  // The tooltip of the honeycomb lives inside the card of the heatmap, over
+  // the drawing area, and shows the date and the tokens of the day under the
+  // pointer.
+  var heatTip = null;
+  // heatTipBound tells if the listeners of the page are already in place, so
+  // they are never added twice.
+  var heatTipBound = false;
+
+  // heatHost is the card of the heatmap, the anchor of the tooltip.
+  var heatHost = null;
+
+  // bindHeatTip wires the hover tooltip of the honeycomb.
+  //
+  // The listeners are on the drawing itself, which is never replaced, so they
+  // survive the updates of the page. The cell under the pointer is found by
+  // its geometry, because the decorative layers of the drawing are laid over
+  // the cells and would swallow the pointer.
+  //
+  // The tooltip is built by hand, with no native title on the cells, so it
+  // shows up at once and follows the pointer.
+  function bindHeatTip() {
+    var svg = refs.heat;
+    if (!svg) return;
+
+    var host = svg.parentNode;
+    if (!host) return;
+    heatHost = host;
+
+    // The tooltip is reused between renders, so it never piles up.
+    if (!heatTip || !heatTip.parentNode) {
+      heatTip = el("div", "tip");
+      heatTip.hidden = true;
+    }
+    if (heatTip.parentNode !== host) host.appendChild(heatTip);
+
+    if (heatTipBound) return;
+    heatTipBound = true;
+
+    // The pointer moving over the drawing shows the tooltip of the cell it
+    // is on.
+    svg.addEventListener("pointermove", function (ev) {
+      heatPointer = { x: ev.clientX, y: ev.clientY };
+      showHeatCell(ev.clientX, ev.clientY);
+    });
+
+    // The pointer leaving the drawing closes the tooltip.
+    svg.addEventListener("pointerleave", function () {
+      heatPointer = null;
+      hideHeatTip();
+    });
+
+    // On a touch screen there is no hover, so a tap shows the tooltip.
+    svg.addEventListener("pointerdown", function (ev) {
+      if (ev.pointerType !== "touch") return;
+      heatPointer = { x: ev.clientX, y: ev.clientY };
+      showHeatCell(ev.clientX, ev.clientY);
+    });
+
+    // A tap outside the card of the heatmap closes the tooltip as well.
+    document.addEventListener("touchstart", function (ev) {
+      if (!heatTip || heatTip.hidden || !heatTip.parentNode) return;
+      if (!heatTip.parentNode.contains(ev.target)) heatTip.hidden = true;
+    }, true);
+  }
+
+  // heatCellAt returns the cell of the honeycomb under the given position of
+  // the pointer, or null when the pointer is not on a cell.
+  //
+  // The position of the pointer is converted to the coordinates of the
+  // drawing, so the cell is found no matter how the drawing is scaled, and
+  // the closest one within a radius of the pointer wins.
+  function heatCellAt(clientX, clientY) {
+    var svg = refs.heat;
+    if (!svg || !heatCells.length) return null;
+
+    var ctm = svg.getScreenCTM();
+    if (!ctm) return null;
+
+    var point = heatPoint(svg, clientX, clientY);
+    if (!point) return null;
+
+    var inverse = ctm.inverse();
+    var local = point.matrixTransform ? point.matrixTransform(inverse) : null;
+    if (!local) return null;
+
+    var best = null;
+    var bestDistance = Infinity;
+    for (var i = 0; i < heatCells.length; i++) {
+      var cell = heatCells[i];
+      var dx = local.x - cell.cx;
+      var dy = local.y - cell.cy;
+      var distance = Math.sqrt(dx * dx + dy * dy);
+      if (distance > HEAT_R) continue;
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = cell;
+      }
+    }
+    return best;
+  }
+
+  // heatPoint returns the position of the pointer in the client space, as a
+  // point that can be transformed by a matrix of the drawing.
+  function heatPoint(svg, clientX, clientY) {
+    if (svg.createSVGPoint) {
+      var point = svg.createSVGPoint();
+      point.x = clientX;
+      point.y = clientY;
+      return point;
+    }
+    if (typeof DOMPoint === "function") {
+      return new DOMPoint(clientX, clientY);
+    }
+    return null;
+  }
+
+  // showHeatCell shows the tooltip of the cell under the given position of
+  // the pointer, and hides it when there is no cell there.
+  function showHeatCell(clientX, clientY) {
+    var cell = heatCellAt(clientX, clientY);
+    if (!cell) {
+      hideHeatTip();
+      return;
+    }
+    showHeatTip(cell);
+  }
+
+  // showHeatTip fills the tooltip with the data of the given cell and puts it
+  // over the cell.
+  function showHeatTip(cell) {
+    if (!heatTip || !heatHost) return;
+
+    clear(heatTip);
+    heatTip.appendChild(el("div", "tip-date", weekdayDate(cell.date)));
+    heatTip.appendChild(el("div", "tip-value", cell.value > 0
+      ? formatCompact(cell.value) + " tokens"
+      : "sem uso"));
+
+    heatTip.hidden = false;
+    heatTip.classList.remove("below");
+
+    // The tooltip is placed with the pixel position of the cell, taken from
+    // the drawing itself, so it stays right above the hexagon no matter how
+    // the honeycomb is scaled.
+    var box = heatCellBox(cell);
+    var hostBox = heatHost.getBoundingClientRect();
+    if (!hostBox.width || !box) return;
+
+    // The cell is centered on the tooltip, which never leaves the card.
+    var left = box.left + box.width / 2 - hostBox.left;
+    var top = box.top - hostBox.top;
+
+    var width = heatTip.offsetWidth;
+    var height = heatTip.offsetHeight;
+    var half = width / 2;
+
+    // The tooltip hangs above the cell, like the one of the chart. When
+    // there is no room above it, it is flipped to the other side.
+    var above = top - height - 10;
+    if (above < 0) {
+      heatTip.classList.add("below");
+      top = top + box.height + 10;
+    }
+    heatTip.style.top = Math.max(0, top) + "px";
+
+    // The tooltip is centered on the cell, but it never leaves the card.
+    heatTip.style.left = Math.max(half, Math.min(hostBox.width - half, left)) + "px";
+
+    highlightHeatCell(cell);
+  }
+
+  // heatCellBox returns the box of the given cell on the screen, in client
+  // coordinates.
+  function heatCellBox(cell) {
+    var svg = refs.heat;
+    if (!svg) return null;
+
+    var ctm = svg.getScreenCTM();
+    if (!ctm) return null;
+
+    var rect = svg.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null;
+
+    // The drawing is scaled to fit its box, so the size of the cell on the
+    // screen follows the scale of the viewBox.
+    var viewBox = svg.viewBox && svg.viewBox.baseVal;
+    var scale = 1;
+    if (viewBox && viewBox.width && viewBox.height) {
+      scale = Math.min(rect.width / viewBox.width, rect.height / viewBox.height);
+    }
+
+    var origin = svgPointToClient(svg, ctm, 0, 0);
+    if (!origin) return null;
+
+    var size = HEAT_R * 2 * scale;
+    var left = origin.x + cell.cx * scale - size / 2;
+    var top = origin.y + cell.cy * scale - size / 2;
+    return { left: left, top: top, width: size, height: size };
+  }
+
+  // svgPointToClient converts a point of the viewBox of the drawing to the
+  // client space.
+  function svgPointToClient(svg, ctm, x, y) {
+    var point = heatPoint(svg, 0, 0);
+    if (!point) return null;
+    point.x = x;
+    point.y = y;
+    if (!point.matrixTransform) return null;
+    var moved = point.matrixTransform(ctm);
+    return { x: moved.x, y: moved.y };
+  }
+
+  // highlightHeatCell outlines the given cell, so the tooltip is clearly
+  // tied to the day it describes.
+  function highlightHeatCell(cell) {
+    if (!heatHighlight || !cell) return;
+    heatHighlight.setAttribute("d", hex(cell.cx, cell.cy, HEAT_R - 2));
+    heatHighlight.setAttribute("visibility", "visible");
+  }
+
+  // hideHeatTip closes the tooltip and takes the outline of the cell away.
+  function hideHeatTip() {
+    if (heatTip) heatTip.hidden = true;
+    if (heatHighlight) heatHighlight.setAttribute("visibility", "hidden");
+  }
+
+  // restoreHeatTip puts the tooltip back on the cell under the pointer, after
+  // the drawing is rebuilt by an update of the page.
+  function restoreHeatTip() {
+    if (!heatPointer) return;
+    showHeatCell(heatPointer.x, heatPointer.y);
+  }
+
+  // WEEKDAY_NAMES are the short names of the weekdays, from Sunday.
+  var WEEKDAY_NAMES = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+
+  // weekdayDate renders a "YYYY-MM-DD" date as "sex, 14/11".
+  //
+  // The name of the day comes first, the way a Brazilian date is read.
+  function weekdayDate(date) {
+    var parts = String(date || "").split("-");
+    if (parts.length < 3) return String(date || "");
+    var name = WEEKDAY_NAMES[dayOfWeek(date)];
+    return name + ", " + parts[2] + "/" + parts[1];
   }
 
   // dayOfWeek returns the day of the week of a "YYYY-MM-DD" date, from 0

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -31,6 +32,38 @@ func entry(ts, id, model string, in, out, cacheWrite, cacheRead int64) string {
 	return fmt.Sprintf(
 		`{"timestamp":%q,"message":{"id":%q,"model":%q,"usage":{"input_tokens":%d,"output_tokens":%d,"cache_creation_input_tokens":%d,"cache_read_input_tokens":%d}}}`,
 		ts, id, model, in, out, cacheWrite, cacheRead)
+}
+
+// claudeUsageOf builds a claudeUsage with the given counters.
+func claudeUsageOf(in, out, cacheWrite, cacheRead int64) *claudeUsage {
+	return &claudeUsage{
+		InputTokens:              in,
+		OutputTokens:             out,
+		CacheCreationInputTokens: cacheWrite,
+		CacheReadInputTokens:     cacheRead,
+	}
+}
+
+// claudeSplitUsage builds a claudeUsage whose cache creation tokens are
+// split by TTL.
+func claudeSplitUsage(in, out, write5m, write1h, cacheRead int64) *claudeUsage {
+	u := claudeUsageOf(in, out, write5m+write1h, cacheRead)
+	u.CacheCreation = &struct {
+		Ephemeral5mInputTokens *int64 `json:"ephemeral_5m_input_tokens"`
+		Ephemeral1hInputTokens *int64 `json:"ephemeral_1h_input_tokens"`
+	}{}
+	five, one := write5m, write1h
+	u.CacheCreation.Ephemeral5mInputTokens = &five
+	u.CacheCreation.Ephemeral1hInputTokens = &one
+	return u
+}
+
+// wantCost fails the test when got and want differ by more than epsilon.
+func wantCost(t *testing.T, got, want float64) {
+	t.Helper()
+	if math.Abs(got-want) > 1e-9 {
+		t.Fatalf("cost = %v, want %v", got, want)
+	}
 }
 
 func TestClaudeName(t *testing.T) {
@@ -435,5 +468,135 @@ func TestClaudeUsageJSONShape(t *testing.T) {
 	}
 	if len(b) == 0 {
 		t.Fatal("empty json")
+	}
+}
+
+func TestClaudeCostOpus55(t *testing.T) {
+	// claude-opus-5-5: [input, cw5m, cw1h, read, output] =
+	// [4, 5, 8, 0.2, 20] US$/M tokens.
+	//
+	// (1000*4 + 3000*5 + 200*0.2 + 500*20) / 1e6 = 0.02904
+	got := claudeCost("claude-opus-5-5", claudeUsageOf(1000, 500, 3000, 200))
+	wantCost(t, got, 0.02904)
+}
+
+func TestClaudeCostCacheWriteWithoutSplitCountsAs5m(t *testing.T) {
+	// Without the TTL breakdown the whole cache creation count is billed
+	// as a 5 minute write.
+	//
+	// (1000*4 + 3000*5 + 200*0.2 + 500*20) / 1e6 = 0.02904
+	got := claudeCost("claude-opus-5-5", claudeUsageOf(1000, 500, 3000, 200))
+	wantCost(t, got, 0.02904)
+}
+
+func TestClaudeCostCacheWriteSplit(t *testing.T) {
+	// The split is used as is: 1000 tokens at 5m (5) and 2000 at 1h (8).
+	//
+	// (1000*4 + 1000*5 + 2000*8 + 200*0.2 + 500*20) / 1e6 = 0.03504
+	got := claudeCost("claude-opus-5-5", claudeSplitUsage(1000, 500, 1000, 2000, 200))
+	wantCost(t, got, 0.03504)
+}
+
+func TestClaudeCostNormalizesModelSuffixes(t *testing.T) {
+	want := 0.02904
+	for _, model := range []string{
+		"claude-opus-5-5",
+		"claude-opus-5-5[1m]",
+		"claude-opus-5-5-20260101",
+		"claude-opus-5-5[1m]-20260101",
+	} {
+		got := claudeCost(model, claudeUsageOf(1000, 500, 3000, 200))
+		if math.Abs(got-want) > 1e-9 {
+			t.Fatalf("claudeCost(%q) = %v, want %v", model, got, want)
+		}
+	}
+}
+
+func TestClaudeCostUnknownModelIsZero(t *testing.T) {
+	for _, model := range []string{"", "claude-opus-9", "gpt-5", "claude-opus-5-5-turbo"} {
+		if got := claudeCost(model, claudeUsageOf(1000, 500, 3000, 200)); got != 0 {
+			t.Fatalf("claudeCost(%q) = %v, want 0", model, got)
+		}
+	}
+}
+
+func TestClaudeCostFastSpeedIsZero(t *testing.T) {
+	u := claudeUsageOf(1000, 500, 3000, 200)
+	u.Speed = "fast"
+	if got := claudeCost("claude-opus-5-5", u); got != 0 {
+		t.Fatalf("cost with fast speed = %v, want 0", got)
+	}
+}
+
+func TestClaudeCostHaikuLongContext(t *testing.T) {
+	// claude-haiku-5-5 below 100k tokens of context:
+	// [0.1, 0.125, 0.2, 0.01, 0.5].
+	//
+	// (1000*0.1 + 3000*0.125 + 200*0.01 + 500*0.5) / 1e6 = 0.000727
+	short := claudeCost("claude-haiku-5-5", claudeUsageOf(1000, 500, 3000, 200))
+	wantCost(t, short, 0.000727)
+
+	// Above 100k tokens of context the long context pricing applies:
+	// [0.5, 0.625, 1, 0.05, 2.5].
+	//
+	// (60000*0.5 + 30000*0.625 + 20000*0.05 + 500*2.5) / 1e6 = 0.051
+	long := claudeCost("claude-haiku-5-5", claudeUsageOf(60000, 500, 30000, 20000))
+	wantCost(t, long, 0.051)
+}
+
+func TestClaudeCostWebSearchIsAdded(t *testing.T) {
+	u := claudeUsageOf(1000, 500, 3000, 200)
+	u.ServerToolUse = &struct {
+		WebSearchRequests int64 `json:"web_search_requests"`
+	}{WebSearchRequests: 3}
+
+	// 0.02904 + 3 * 0.01
+	got := claudeCost("claude-opus-5-5", u)
+	wantCost(t, got, 0.05904)
+}
+
+func TestClaudeCostNilUsageIsZero(t *testing.T) {
+	if got := claudeCost("claude-opus-5-5", nil); got != 0 {
+		t.Fatalf("cost = %v, want 0", got)
+	}
+}
+
+func TestClaudeRecordCostIsEstimated(t *testing.T) {
+	root := t.TempDir()
+	line := `{"timestamp":"2026-01-02T03:04:05.000Z","message":{"id":"a","model":"claude-opus-5-5",` +
+		`"usage":{"input_tokens":1000,"output_tokens":500,"cache_creation_input_tokens":3000,` +
+		`"cache_read_input_tokens":200,"speed":"standard",` +
+		`"cache_creation":{"ephemeral_5m_input_tokens":1000,"ephemeral_1h_input_tokens":2000},` +
+		`"server_tool_use":{"web_search_requests":2}}}}` + "\n"
+	writeFile(t, root, "proj/session.jsonl", line)
+
+	c := NewClaude(root)
+	recs, err := c.Load(context.Background())
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(recs) != 1 {
+		t.Fatalf("got %d records, want 1: %+v", len(recs), recs)
+	}
+	// (1000*4 + 1000*5 + 2000*8 + 200*0.2 + 500*20) / 1e6 + 2*0.01
+	wantCost(t, recs[0].Cost, 0.05504)
+}
+
+func TestClaudeRecordCostIsZeroForFastSpeed(t *testing.T) {
+	root := t.TempDir()
+	line := `{"timestamp":"2026-01-02T03:04:05.000Z","message":{"id":"a","model":"claude-opus-5-5",` +
+		`"usage":{"input_tokens":1000,"output_tokens":500,"speed":"fast"}}}` + "\n"
+	writeFile(t, root, "proj/session.jsonl", line)
+
+	c := NewClaude(root)
+	recs, err := c.Load(context.Background())
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(recs) != 1 {
+		t.Fatalf("got %d records, want 1: %+v", len(recs), recs)
+	}
+	if recs[0].Cost != 0 {
+		t.Fatalf("cost = %v, want 0", recs[0].Cost)
 	}
 }

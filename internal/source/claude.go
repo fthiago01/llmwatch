@@ -25,7 +25,76 @@ const (
 	claudeProvider = "anthropic"
 	// syntheticModel marks locally generated (non API) messages.
 	syntheticModel = "<synthetic>"
+	// claudeWebSearchPrice is the price, in US dollars, of a single web
+	// search request performed by the server side web search tool.
+	claudeWebSearchPrice = 0.01
+	// claudeHaikuLongContextTokens is the context size above which the
+	// long context pricing of claude-haiku-5-5 applies.
+	claudeHaikuLongContextTokens = 100000
 )
+
+// claudePricing holds the price, in US dollars per million tokens, of the
+// token classes of a model.
+//
+// The order of the fields is [input, cacheWrite5m, cacheWrite1h,
+// cacheRead, output].
+type claudePricing struct {
+	Input        float64
+	CacheWrite5m float64
+	CacheWrite1h float64
+	CacheRead    float64
+	Output       float64
+}
+
+// claudePrices maps a normalized model id to its pricing.
+//
+// A model that is not listed here has no known price: its cost is reported
+// as zero instead of being guessed.
+var claudePrices = map[string]claudePricing{
+	"claude-fable-5-1":  {Input: 10, CacheWrite5m: 12.5, CacheWrite1h: 20, CacheRead: 0.25, Output: 50},
+	"claude-fable-5":    {Input: 10, CacheWrite5m: 12.5, CacheWrite1h: 20, CacheRead: 1, Output: 50},
+	"claude-opus-5-5":   {Input: 4, CacheWrite5m: 5, CacheWrite1h: 8, CacheRead: 0.2, Output: 20},
+	"claude-opus-5":     {Input: 5, CacheWrite5m: 6.25, CacheWrite1h: 10, CacheRead: 0.5, Output: 25},
+	"claude-opus-4-8":   {Input: 5, CacheWrite5m: 6.25, CacheWrite1h: 10, CacheRead: 0.5, Output: 25},
+	"claude-opus-4-7":   {Input: 5, CacheWrite5m: 6.25, CacheWrite1h: 10, CacheRead: 0.5, Output: 25},
+	"claude-opus-4-6":   {Input: 5, CacheWrite5m: 6.25, CacheWrite1h: 10, CacheRead: 0.5, Output: 25},
+	"claude-opus-4-5":   {Input: 5, CacheWrite5m: 6.25, CacheWrite1h: 10, CacheRead: 0.5, Output: 25},
+	"claude-sonnet-5-5": {Input: 2, CacheWrite5m: 2.5, CacheWrite1h: 4, CacheRead: 0.1, Output: 10},
+	"claude-sonnet-5":   {Input: 2, CacheWrite5m: 2.5, CacheWrite1h: 4, CacheRead: 0.2, Output: 10},
+	"claude-sonnet-4-6": {Input: 3, CacheWrite5m: 3.75, CacheWrite1h: 6, CacheRead: 0.3, Output: 15},
+	"claude-sonnet-4-5": {Input: 3, CacheWrite5m: 3.75, CacheWrite1h: 6, CacheRead: 0.3, Output: 15},
+	"claude-haiku-5-5":  {Input: 0.1, CacheWrite5m: 0.125, CacheWrite1h: 0.2, CacheRead: 0.01, Output: 0.5},
+	"claude-haiku-4-5":  {Input: 1, CacheWrite5m: 1.25, CacheWrite1h: 2, CacheRead: 0.1, Output: 5},
+}
+
+// claudeHaikuLongContextPricing is the pricing of claude-haiku-5-5 when the
+// context of the request exceeds claudeHaikuLongContextTokens.
+var claudeHaikuLongContextPricing = claudePricing{
+	Input: 0.5, CacheWrite5m: 0.625, CacheWrite1h: 1, CacheRead: 0.05, Output: 2.5,
+}
+
+// claudeUsage is the usage payload of a transcript message.
+//
+// The cache creation tokens are split by TTL when the transcript provides
+// the breakdown; when it does not, the whole cache creation count is
+// considered a 5 minute write.
+type claudeUsage struct {
+	InputTokens              int64 `json:"input_tokens"`
+	OutputTokens             int64 `json:"output_tokens"`
+	CacheCreationInputTokens int64 `json:"cache_creation_input_tokens"`
+	CacheReadInputTokens     int64 `json:"cache_read_input_tokens"`
+	// CacheCreation splits the cache creation tokens by TTL.
+	CacheCreation *struct {
+		Ephemeral5mInputTokens *int64 `json:"ephemeral_5m_input_tokens"`
+		Ephemeral1hInputTokens *int64 `json:"ephemeral_1h_input_tokens"`
+	} `json:"cache_creation"`
+	// Speed describes the serving tier of the request, e.g. "fast".
+	Speed string `json:"speed"`
+	// ServerToolUse holds the usage of the server side tools.
+	ServerToolUse *struct {
+		WebSearchRequests int64 `json:"web_search_requests"`
+	} `json:"server_tool_use"`
+}
 
 // claudeEntry is the subset of a transcript line that carries usage data.
 type claudeEntry struct {
@@ -37,14 +106,9 @@ type claudeEntry struct {
 	// line does not carry one.
 	Cwd     string `json:"cwd"`
 	Message struct {
-		ID    string `json:"id"`
-		Model string `json:"model"`
-		Usage *struct {
-			InputTokens              int64 `json:"input_tokens"`
-			OutputTokens             int64 `json:"output_tokens"`
-			CacheCreationInputTokens int64 `json:"cache_creation_input_tokens"`
-			CacheReadInputTokens     int64 `json:"cache_read_input_tokens"`
-		} `json:"usage"`
+		ID    string       `json:"id"`
+		Model string       `json:"model"`
+		Usage *claudeUsage `json:"usage"`
 	} `json:"message"`
 }
 
@@ -306,10 +370,107 @@ func parseClaudeLine(line []byte) (usage.Record, string) {
 		Output:     entry.Message.Usage.OutputTokens,
 		CacheWrite: entry.Message.Usage.CacheCreationInputTokens,
 		CacheRead:  entry.Message.Usage.CacheReadInputTokens,
-		Cost:       0,
+		Cost:       claudeCost(entry.Message.Model, entry.Message.Usage),
 		Session:    entry.SessionID,
 		Project:    entry.Cwd,
 	}, entry.Message.ID
+}
+
+// claudeCost estimates, in US dollars, the cost of one Claude Code
+// response from its usage counters.
+//
+// The model id is normalized before the lookup, so "claude-opus-5-5[1m]"
+// and "claude-opus-5-5-20260101" are priced as "claude-opus-5-5". A model
+// with no known price, or a request served with the "fast" speed, has no
+// estimable cost and yields zero.
+func claudeCost(model string, u *claudeUsage) float64 {
+	if u == nil {
+		return 0
+	}
+	if strings.EqualFold(strings.TrimSpace(u.Speed), "fast") {
+		// The fast speed is not covered by the price table.
+		return 0
+	}
+
+	name := claudeNormalizeModel(model)
+	pricing, ok := claudePrices[name]
+	if !ok {
+		// The model is unknown: the cost is not guessed.
+		return 0
+	}
+
+	write5m, write1h := claudeCacheWrites(u)
+	if name == "claude-haiku-5-5" &&
+		u.InputTokens+u.CacheReadInputTokens+write5m+write1h > claudeHaikuLongContextTokens {
+		pricing = claudeHaikuLongContextPricing
+	}
+
+	cost := float64(u.InputTokens)*pricing.Input +
+		float64(write5m)*pricing.CacheWrite5m +
+		float64(write1h)*pricing.CacheWrite1h +
+		float64(u.CacheReadInputTokens)*pricing.CacheRead +
+		float64(u.OutputTokens)*pricing.Output
+	cost /= 1e6
+
+	if u.ServerToolUse != nil {
+		cost += float64(u.ServerToolUse.WebSearchRequests) * claudeWebSearchPrice
+	}
+	return cost
+}
+
+// claudeCacheWrites returns the number of tokens written to the cache with
+// a 5 minute and with a 1 hour TTL.
+//
+// When the transcript carries the TTL breakdown it is used as is;
+// otherwise the whole cache creation count is billed as a 5 minute write.
+func claudeCacheWrites(u *claudeUsage) (int64, int64) {
+	if u.CacheCreation == nil {
+		return u.CacheCreationInputTokens, 0
+	}
+	if u.CacheCreation.Ephemeral5mInputTokens == nil && u.CacheCreation.Ephemeral1hInputTokens == nil {
+		return u.CacheCreationInputTokens, 0
+	}
+	var write5m, write1h int64
+	if u.CacheCreation.Ephemeral5mInputTokens != nil {
+		write5m = *u.CacheCreation.Ephemeral5mInputTokens
+	}
+	if u.CacheCreation.Ephemeral1hInputTokens != nil {
+		write1h = *u.CacheCreation.Ephemeral1hInputTokens
+	}
+	return write5m, write1h
+}
+
+// claudeNormalizeModel normalizes a model id so it can be looked up in the
+// price table.
+//
+// It removes the bracketed suffix used by the long context variants
+// ("claude-opus-5-5[1m]") and the date suffix of the snapshots
+// ("claude-opus-5-5-20260101").
+func claudeNormalizeModel(model string) string {
+	model = strings.TrimSpace(model)
+	if i := strings.IndexByte(model, '['); i >= 0 {
+		model = model[:i]
+	}
+	// The date suffix is the last dash separated group, made of 8 digits.
+	if i := strings.LastIndexByte(model, '-'); i >= 0 && i+1 < len(model) {
+		if isAllDigits(model[i+1:]) && len(model)-i-1 == 8 {
+			model = model[:i]
+		}
+	}
+	return model
+}
+
+// isAllDigits reports whether s is made of decimal digits only.
+func isAllDigits(s string) bool {
+	if s == "" {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		if s[i] < '0' || s[i] > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // add stores a record in the file state.
